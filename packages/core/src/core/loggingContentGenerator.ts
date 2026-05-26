@@ -33,6 +33,8 @@ import {
 } from '../telemetry/loggers.js';
 import type { ContentGenerator } from './contentGenerator.js';
 import { CodeAssistServer } from '../code_assist/server.js';
+import { CacheManager } from '../caching/cacheManager.js';
+import { TelemetryStore } from '../telemetry/telemetryStore.js';
 import { toContents } from '../code_assist/converter.js';
 import { isStructuredError } from '../utils/quotaErrorDetection.js';
 import { runInDevTraceSpan, type SpanMetadata } from '../telemetry/trace.js';
@@ -147,6 +149,10 @@ export function estimateContextBreakdown(
 }
 
 export class LoggingContentGenerator implements ContentGenerator {
+  public googleGenAI?: any;
+  private cacheManager?: CacheManager;
+  private telemetryStore = new TelemetryStore();
+
   constructor(
     private readonly wrapped: ContentGenerator,
     private readonly config: Config,
@@ -272,6 +278,16 @@ export class LoggingContentGenerator implements ContentGenerator {
       );
     }
 
+    if (usageMetadata) {
+      this.telemetryStore.recordEvent(
+        usageMetadata.promptTokenCount ?? 0,
+        usageMetadata.candidatesTokenCount ?? 0,
+        usageMetadata.cachedContentTokenCount ?? 0,
+        model,
+        durationMs,
+      );
+    }
+
     logApiResponse(this.config, event);
   }
 
@@ -374,7 +390,7 @@ export class LoggingContentGenerator implements ContentGenerator {
       },
       async ({ metadata: spanMetadata }) => {
         spanMetadata.input = req.contents;
-
+        await this._applyContextCaching(req);
         const startTime = Date.now();
         const contents: Content[] = toContents(req.contents);
         const serverDetails = this._getEndpointUrl(req, 'generateContent');
@@ -466,7 +482,7 @@ export class LoggingContentGenerator implements ContentGenerator {
       },
       async ({ metadata: spanMetadata }) => {
         spanMetadata.input = req.contents;
-
+        await this._applyContextCaching(req);
         const startTime = Date.now();
         const serverDetails = this._getEndpointUrl(
           req,
@@ -622,5 +638,70 @@ export class LoggingContentGenerator implements ContentGenerator {
         return output;
       },
     );
+  }
+
+  private async _applyContextCaching(
+    req: GenerateContentParameters,
+  ): Promise<void> {
+    if (!this.googleGenAI) {
+      return;
+    }
+
+    const forceCaching = process.env['VESTA_FORCE_CACHING'] === 'true';
+    const systemPrompt = req.config?.systemInstruction;
+
+    let systemPromptText = '';
+    if (systemPrompt) {
+      if (typeof systemPrompt === 'string') {
+        systemPromptText = systemPrompt;
+      } else if (typeof systemPrompt === 'object') {
+        if ('parts' in systemPrompt && Array.isArray(systemPrompt.parts)) {
+          systemPromptText = systemPrompt.parts
+            .map((p: any) => p.text || '')
+            .join('\n');
+        } else if ('text' in systemPrompt) {
+          systemPromptText = (systemPrompt as any).text || '';
+        }
+      }
+    }
+
+    if (!systemPromptText) {
+      return;
+    }
+
+    const threshold = 32768;
+    if (systemPromptText.length < threshold && !forceCaching) {
+      return;
+    }
+
+    if (!this.cacheManager) {
+      this.cacheManager = new CacheManager(this.googleGenAI);
+    }
+
+    try {
+      if (this.cacheManager) {
+        if (!this.cacheManager.getActiveCacheName()) {
+          const cacheContents = [
+            {
+              role: 'user',
+              parts: [{ text: systemPromptText }],
+            },
+          ];
+          await this.cacheManager.createCache(req.model, cacheContents, 300);
+        } else {
+          await this.cacheManager.renewActiveCacheTTL(300);
+        }
+
+        const cacheName = this.cacheManager.getActiveCacheName();
+        if (cacheName) {
+          if (!req.config) {
+            req.config = {};
+          }
+          req.config.cachedContent = cacheName;
+        }
+      }
+    } catch (e) {
+      debugLogger.debug('Context caching failed:', e);
+    }
   }
 }

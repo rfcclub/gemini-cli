@@ -273,6 +273,7 @@ export const ALL_BUILTIN_TOOL_NAMES = [
   AGENT_TOOL_NAME,
   READ_MCP_RESOURCE_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
+  'visual_ui_forge',
 ] as const;
 
 /**

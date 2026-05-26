@@ -248,6 +248,7 @@ export * from './tools/write-todos.js';
 export * from './tools/trackerTools.js';
 export * from './tools/activate-skill.js';
 export * from './tools/ask-user.js';
+export * from './tools/visualUiForge.js';
 
 // MCP OAuth
 export { MCPOAuthProvider } from './mcp/oauth-provider.js';
@@ -312,3 +313,8 @@ export * from './voice/whisperTranscriptionProvider.js';
 export * from './voice/transcriptionFactory.js';
 export * from './voice/whisperModelManager.js';
 export { isBinaryAvailable } from './utils/binaryCheck.js';
+
+// Export Caching & Telemetry
+export * from './caching/cacheManager.js';
+export * from './telemetry/telemetryStore.js';
+export * from './utils/resilientBlockMatcher.js';

@@ -337,6 +337,14 @@ describe('EditTool', () => {
         occurrences: 1,
       },
       {
+        name: 'perform a resilient replacement with extreme formatting and internal whitespace differences',
+        content: '  let   x   =   1;\n  let   y   =   2;\n',
+        old_string: 'let x = 1;\nlet y = 2;',
+        new_string: 'let x = 100;\nlet y = 200;',
+        expected: '  let x = 100;\n  let y = 200;\n',
+        occurrences: 1,
+      },
+      {
         name: 'return 0 occurrences if no match is found',
         content: 'hello world',
         old_string: 'nomatch',

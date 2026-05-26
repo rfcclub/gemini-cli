@@ -200,9 +200,12 @@ describe('createContentGenerator', () => {
         }),
       }),
     });
-    expect(generator).toEqual(
-      new LoggingContentGenerator(mockGenerator.models, mockConfig),
+    const expected = new LoggingContentGenerator(
+      mockGenerator.models,
+      mockConfig,
     );
+    expected.googleGenAI = mockGenerator;
+    expect(generator).toEqual(expected);
   });
 
   it('should use standard User-Agent for a2a-server running outside VS Code', async () => {
@@ -737,9 +740,12 @@ describe('createContentGenerator', () => {
         },
       }),
     });
-    expect(generator).toEqual(
-      new LoggingContentGenerator(mockGenerator.models, mockConfig),
+    const expected = new LoggingContentGenerator(
+      mockGenerator.models,
+      mockConfig,
     );
+    expected.googleGenAI = mockGenerator;
+    expect(generator).toEqual(expected);
   });
 
   it('should pass apiVersion to GoogleGenAI when GOOGLE_GENAI_API_VERSION is set', async () => {

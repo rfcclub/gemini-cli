@@ -42,6 +42,7 @@ import {
 import { IdeClient } from '../ide/ide-client.js';
 import { FixLLMEditWithInstruction } from '../utils/llm-edit-fixer.js';
 import { safeLiteralReplace, detectLineEnding } from '../utils/textUtils.js';
+import { ResilientBlockMatcher } from '../utils/resilientBlockMatcher.js';
 import { EditStrategyEvent, EditCorrectionEvent } from '../telemetry/types.js';
 import {
   logEditStrategy,
@@ -169,6 +170,53 @@ async function calculateExactReplacement(
   }
 
   return null;
+}
+
+async function calculateResilientReplacement(
+  context: ReplacementContext,
+): Promise<ReplacementResult | null> {
+  const { currentContent, params } = context;
+  const { old_string, new_string } = params;
+
+  const normalizedCode = currentContent;
+  const normalizedSearch = old_string.replace(/\r\n/g, '\n');
+  const normalizedReplace = new_string.replace(/\r\n/g, '\n');
+
+  const matches = ResilientBlockMatcher.findMatches(normalizedCode, normalizedSearch);
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const sourceLines = normalizedCode.match(/.*(?:\n|$)/g)?.slice(0, -1) ?? [];
+  const searchLines = normalizedSearch.split('\n');
+  const replaceLines = normalizedReplace.split('\n');
+  const N = searchLines.length;
+
+  // Apply replacements from bottom to top so that line indices remain valid
+  const matchesSorted = [...matches].sort((a, b) => b.lineIndex - a.lineIndex);
+
+  for (const match of matchesSorted) {
+    const indentedReplaceLines = applyIndentation(replaceLines, match.indentation);
+    let replacementText = indentedReplaceLines.join('\n');
+
+    // Handle trailing newlines correctly
+    const lastLineInMatch = sourceLines[match.lineIndex + N - 1];
+    if (lastLineInMatch && lastLineInMatch.endsWith('\n') && !replacementText.endsWith('\n')) {
+      replacementText += '\n';
+    }
+
+    sourceLines.splice(match.lineIndex, N, replacementText);
+  }
+
+  let modifiedCode = sourceLines.join('');
+  modifiedCode = restoreTrailingNewline(currentContent, modifiedCode);
+
+  return {
+    newContent: modifiedCode,
+    occurrences: matches.length,
+    finalOldString: normalizedSearch,
+    finalNewString: normalizedReplace,
+  };
 }
 
 async function calculateFlexibleReplacement(
@@ -319,6 +367,13 @@ export async function calculateReplacement(
     const event = new EditStrategyEvent('exact');
     logEditStrategy(config, event);
     return exactResult;
+  }
+
+  const resilientResult = await calculateResilientReplacement(context);
+  if (resilientResult) {
+    const event = new EditStrategyEvent('resilient');
+    logEditStrategy(config, event);
+    return resilientResult;
   }
 
   const flexibleResult = await calculateFlexibleReplacement(context);

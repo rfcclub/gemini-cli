@@ -56,6 +56,8 @@ export interface ContentGenerator {
   userTierName?: string;
 
   paidTier?: GeminiUserTier;
+
+  googleGenAI?: any;
 }
 
 export enum AuthType {
@@ -377,7 +379,12 @@ export async function createContentGenerator(
           },
         }),
       });
-      return new LoggingContentGenerator(googleGenAI.models, gcConfig);
+      const loggingGen = new LoggingContentGenerator(
+        googleGenAI.models,
+        gcConfig,
+      );
+      loggingGen.googleGenAI = googleGenAI;
+      return loggingGen;
     }
     throw new Error(
       `Error creating contentGenerator: Unsupported authType: ${config.authType}`,

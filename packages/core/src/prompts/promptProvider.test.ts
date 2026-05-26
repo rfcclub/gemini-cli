@@ -5,6 +5,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { PromptProvider } from './promptProvider.js';
 import type { Config } from '../config/config.js';
 import { makeRelative } from '../utils/paths.js';
@@ -413,6 +416,33 @@ describe('PromptProvider', () => {
       expect(prompt).toContain(UPDATE_TOPIC_TOOL_NAME);
       expect(prompt).toContain('No Chitchat');
       expect(prompt).toContain('Topic Model');
+    });
+  });
+
+  describe('Vesta Athanor loading', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = path.join(os.tmpdir(), `athanor-test-${Math.random()}`);
+      fs.mkdirSync(tempDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should inject Athanor files when directory is configured via env var', () => {
+      fs.writeFileSync(path.join(tempDir, 'BOOT.md'), 'Test Boot Content');
+      fs.writeFileSync(path.join(tempDir, 'AXIOMS.md'), 'Test Axioms Content');
+
+      vi.stubEnv('VESTA_ATHANOR_DIR', tempDir);
+
+      const provider = new PromptProvider();
+      const prompt = provider.getCoreSystemPrompt(mockConfig);
+
+      expect(prompt).toContain('Test Boot Content');
+      expect(prompt).toContain('Test Axioms Content');
+      expect(prompt).toContain('VESTA AWAKENING PROTOCOL & IDENTITY (ATHANOR)');
     });
   });
 });

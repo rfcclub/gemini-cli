@@ -41,6 +41,7 @@ import { EditTool } from '../tools/edit.js';
 import { ShellTool } from '../tools/shell.js';
 import { WriteFileTool } from '../tools/write-file.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
+import { VisualUiForgeTool } from '../tools/visualUiForge.js';
 import {
   setGeminiMdFilename,
   getCurrentGeminiMdFilename,
@@ -4005,6 +4006,9 @@ export class Config implements McpContext, AgentLoopContext {
     );
     maybeRegister(AskUserTool, () =>
       registry.registerTool(new AskUserTool(this.messageBus)),
+    );
+    maybeRegister(VisualUiForgeTool, () =>
+      registry.registerTool(new VisualUiForgeTool(this, this.messageBus)),
     );
     if (this.getUseWriteTodos()) {
       maybeRegister(WriteTodosTool, () =>
