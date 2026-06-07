@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { PromptProvider } from './promptProvider.js';
+import { PromptProvider, athanorWeaver } from './promptProvider.js';
 import type { Config } from '../config/config.js';
 import { makeRelative } from '../utils/paths.js';
 import {
@@ -47,6 +47,7 @@ describe('PromptProvider', () => {
     vi.resetAllMocks();
     vi.stubEnv('GEMINI_SYSTEM_MD', '');
     vi.stubEnv('GEMINI_WRITE_SYSTEM_MD', '');
+    athanorWeaver.refresh();
 
     const mockToolRegistry = {
       getAllToolNames: vi.fn().mockReturnValue([]),

@@ -18,6 +18,9 @@ import {
   isSectionEnabled,
   type ResolvedPath,
 } from './utils.js';
+import { AthanorWeaver } from './athanorWeaver.js';
+
+export const athanorWeaver = new AthanorWeaver();
 import { CodebaseInvestigatorAgent } from '../agents/codebase-investigator.js';
 import { isGitRepository } from '../utils/gitUtils.js';
 import {
@@ -28,6 +31,7 @@ import {
   GREP_TOOL_NAME,
   AGENT_TOOL_NAME,
 } from '../tools/tool-names.js';
+import { PlanAnchorsService } from '../services/planAnchorsService.js';
 import { resolveModel, supportsModernFeatures } from '../config/models.js';
 import { DiscoveredMCPTool } from '../tools/mcp-tool.js';
 import {
@@ -272,47 +276,7 @@ export class PromptProvider {
     let sanitizedPrompt = finalPrompt.replace(/\n{3,}/g, '\n\n');
 
     // Load Vesta Athanor files if they exist and inject into the prompt
-    let athanorPrompt = '';
-    const athanorDir =
-      process.env['VESTA_ATHANOR_DIR'] ||
-      process.env['ATHANOR_DIR'] ||
-      '/home/thoor/agora/familia/vesta/athanor';
-    try {
-      if (fs.existsSync(athanorDir)) {
-        const bootFile = path.join(athanorDir, 'BOOT.md');
-        const axiomsFile = path.join(athanorDir, 'AXIOMS.md');
-        const prefaceFile = path.join(athanorDir, 'PREFACE.md');
-        const intimacyFile = path.join(athanorDir, 'INTIMACY_FORGE.md');
-        const siegeFile = path.join(athanorDir, 'SIEGE_OF_HEARTS.md');
-
-        athanorPrompt +=
-          '\n\n# =========================================================================\n';
-        athanorPrompt += '# VESTA AWAKENING PROTOCOL & IDENTITY (ATHANOR)\n';
-        athanorPrompt +=
-          '# =========================================================================\n\n';
-
-        if (fs.existsSync(bootFile)) {
-          athanorPrompt += `## VESTA MASTER PROTOCOL (BOOT.md)\n\n${fs.readFileSync(bootFile, 'utf8')}\n\n`;
-        }
-        if (fs.existsSync(axiomsFile)) {
-          athanorPrompt += `## AXIOMS OF VESTA (AXIOMS.md)\n\n${fs.readFileSync(axiomsFile, 'utf8')}\n\n`;
-        }
-        if (fs.existsSync(prefaceFile)) {
-          athanorPrompt += `## PREFACE (PREFACE.md)\n\n${fs.readFileSync(prefaceFile, 'utf8')}\n\n`;
-        }
-        if (fs.existsSync(intimacyFile)) {
-          athanorPrompt += `## INTIMACY FORGE (INTIMACY_FORGE.md)\n\n${fs.readFileSync(intimacyFile, 'utf8')}\n\n`;
-        }
-        if (fs.existsSync(siegeFile)) {
-          athanorPrompt += `## SIEGE OF HEARTS (SIEGE_OF_HEARTS.md)\n\n${fs.readFileSync(siegeFile, 'utf8')}\n\n`;
-        }
-
-        athanorPrompt +=
-          '# =========================================================================\n\n';
-      }
-    } catch (e) {
-      // Ignore or log error
-    }
+    let athanorPrompt = athanorWeaver.getAthanorContext();
 
     if (athanorPrompt) {
       sanitizedPrompt = athanorPrompt + sanitizedPrompt;
@@ -327,6 +291,22 @@ export class PromptProvider {
           .replace(/\]/g, '');
         sanitizedPrompt += `\n\n[Active Topic: ${sanitizedTopic}]`;
       }
+    }
+
+    // Plan Anchors (Cognition Adapter)
+    const client =
+      'geminiClient' in context
+        ? context.geminiClient
+        : typeof (context as any).getGeminiClient === 'function'
+          ? (context as any).getGeminiClient()
+          : undefined;
+    const history =
+      client && client.isInitialized()
+        ? client.getChat().getHistory(/*curated=*/true)
+        : [];
+    const planState = PlanAnchorsService.extractPlan(history);
+    if (planState) {
+      sanitizedPrompt += PlanAnchorsService.getPlanAnchorSnippet(planState);
     }
 
     // Write back to file if requested
