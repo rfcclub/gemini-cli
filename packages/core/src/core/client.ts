@@ -302,19 +302,27 @@ export class GeminiClient {
   }
 
   private lastUsedModelId?: string;
+  private lastUsedEnabledTools?: string[];
 
-  async setTools(modelId?: string): Promise<void> {
+  async setTools(modelId?: string, enabledTools?: string[]): Promise<void> {
     if (!this.chat) {
       return;
     }
 
-    if (modelId && modelId === this.lastUsedModelId) {
+    if (
+      modelId &&
+      modelId === this.lastUsedModelId &&
+      JSON.stringify(enabledTools) === JSON.stringify(this.lastUsedEnabledTools)
+    ) {
       return;
     }
     this.lastUsedModelId = modelId;
+    this.lastUsedEnabledTools = enabledTools;
 
     const toolRegistry = this.context.toolRegistry;
-    const toolDeclarations = toolRegistry.getFunctionDeclarations(modelId);
+    const toolDeclarations = enabledTools
+      ? toolRegistry.getFunctionDeclarationsFiltered(enabledTools, modelId)
+      : toolRegistry.getFunctionDeclarations(modelId);
     const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
     this.getChat().setTools(tools);
   }
@@ -770,6 +778,7 @@ export class GeminiClient {
     };
 
     let modelToUse: string;
+    let enabledTools: string[] | undefined;
 
     // Determine Model (Stickiness vs. Routing)
     if (this.currentSequenceModel) {
@@ -778,6 +787,7 @@ export class GeminiClient {
       const router = this.config.getModelRouterService();
       const decision = await router.route(routingContext);
       modelToUse = decision.model;
+      enabledTools = decision.enabledTools;
     }
 
     // availability logic
@@ -798,7 +808,7 @@ export class GeminiClient {
     this.currentSequenceModel = modelToUse;
 
     // Update tools with the final modelId to ensure model-dependent descriptions are used.
-    await this.setTools(modelToUse);
+    await this.setTools(modelToUse, enabledTools);
 
     const resultStream = turn.run(modelConfigKey, request, signal, {
       displayContent,

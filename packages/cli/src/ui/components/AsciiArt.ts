@@ -4,7 +4,80 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const shortAsciiLogo = `
+const isVestaEnv = () => {
+  if (typeof process === 'undefined') {
+    return false;
+  }
+  if (process.env?.['VITEST']) {
+    return false;
+  }
+  return (
+    process.env?.['VESTA_ATHANOR_DIR'] !== undefined ||
+    process.env?.['ATHANOR_DIR'] !== undefined ||
+    process.argv?.some((arg) => arg.includes('gemini-vesta') || arg.includes('gemini_vesta'))
+  );
+};
+
+// --- GEMINI Logos ---
+
+const shortGeminiLogo = `
+   █████████  ██████████ ██████   ██████ █████ ██████   █████ █████
+  ███░░░░░███░░███░░░░░█░░██████ ██████ ░░███ ░░██████ ░░███ ░░███
+ ███     ░░░  ░███  █ ░  ░███░█████░███  ░███  ░███░███ ░███  ░███
+░███          ░██████    ░███░░███ ░███  ░███  ░███░░███░███  ░███
+░███    █████ ░███░░█    ░███ ░░░  ░███  ░███  ░███ ░░██████  ░███
+░░███  ░░███  ░███ ░   █ ░███      ░███  ░███  ░███  ░░█████  ░███
+ ░░█████████  ██████████ █████     █████ █████ █████  ░░█████ █████
+  ░░░░░░░░░  ░░░░░░░░░░ ░░░░░     ░░░░░ ░░░░░ ░░░░░    ░░░░░ ░░░░░
+`;
+
+const longGeminiLogo = `
+ █████████  ██████████ ██████   ██████ █████ ██████   █████ █████ 
+███░░░░░███░░███░░░░░█░░██████ █████ ░░███░░██████ ░░███ ░░███  
+███ ░░░░░░░  ░███  █ ░  ░███░█████░███  ░███ ░███░███ ░███  ░███  
+░███          ░██████    ░███░░███ ░███  ░███ ░███░░███░███  ░███  
+░███    █████ ░███░░█    ░███ ░░░  ░███  ░███ ░███ ░░██████  ░███  
+░░███  ░░███  ░███ ░   █ ░███      ░███  ░███ ░███  ░░█████  ░███  
+ ░░█████████  ██████████ █████     █████ █████ █████  ░░████ █████ 
+  ░░░░░░░░░  ░░░░░░░░░░ ░░░░░     ░░░░░ ░░░░░ ░░░░░    ░░░░ ░░░░░  
+`;
+
+const tinyGeminiLogo = `
+ ███         █████████ 
+░░░███      ███░░░░░███
+  ░░░███   ███     ░░░ 
+    ░░░███░███         
+     ███░ ░███    █████
+   ███░   ░░███  ░░███ 
+ ███░      ░░█████████ 
+░░░         ░░░░░░░░░  
+`;
+
+const shortGeminiLogoCompactText = `
+▟▛▀▀█▖▜█▀▀▜▝██▙▗██▛▝█▛▝██▙ ▜█▘▜█▘
+▐█     ▐█▄▌  █▌▜█▘█▌ █▌ █▌▜▙▐█ ▐█ 
+▝█▖ ▜█▘▐█ ▘▗ █▌   █▌ █▌ █▌ ▜██ ▐█ 
+ ▝▀▀▀▀ ▀▀▀▀▀▝▀▀  ▝▀▀▝▀▀▝▀▀  ▀▀▘▀▀▘
+`;
+
+const longGeminiLogoCompactText = `
+▗█▀▀▜▙▝█▛▀▀▌▜██▖▟██▘▜█▘▜██▖▝█▛▝█▛
+█▌     █▙▟  ▐█▝█▛▐█ ▐█ ▐█▝█▖█▌ █▌
+▜▙ ▝█▛ █▌▝ ▖▐█   ▐█ ▐█ ▐█ ▝██▌ █▌
+ ▀▀▀▀▘▝▀▀▀▀▘▀▀▘  ▀▀▘▀▀▘▀▀▘ ▝▀▀▝▀▀
+`;
+
+const tinyGeminiLogoCompactText = `
+▟▛▀▀█▖
+▐█     
+▝█▖ ▜█▘
+ ▝▀▀▀▀ 
+`;
+
+
+// --- VESTA Logos ---
+
+const shortVestaLogo = `
 ███     ███ ██████████  █████████  ███████████    █████████  
 ███     ███ ░███░░░░░░█ ███░░░░░███░░░░░███░░░░  ███░░░░░███ 
 ███     ███ ░███  █ ░  ░███     ░░░     ░███    ░███    ░███ 
@@ -15,7 +88,7 @@ export const shortAsciiLogo = `
    ░░░     ░░░░░░░░░░   ░░░░░░░░░      ░░░░░   ░░░░░  ░░░░░ 
 `;
 
-export const longAsciiLogo = `
+const longVestaLogo = `
 ███     ███ ██████████  █████████  ███████████    █████████  
 ███     ███ ░███░░░░░░█ ███░░░░░███░░░░░███░░░░  ███░░░░░███ 
 ███     ███ ░███  █ ░  ░███     ░░░     ░███    ░███    ░███ 
@@ -26,7 +99,7 @@ export const longAsciiLogo = `
    ░░░     ░░░░░░░░░░   ░░░░░░░░░      ░░░░░   ░░░░░  ░░░░░ 
 `;
 
-export const tinyAsciiLogo = `
+const tinyVestaLogo = `
  █▌    █▌ █▛▀▀▀▀  ▞▀▀▀▀▜  ▛▀▀▀▀▀▜ ▟▛▀▀▀▀█▙
  ▐█   █▌  ▐█▄▄▄▄ ▐█▄     ▐█   █▌  ▐█▄▄▄▄█▌
   ▜█ █▛   ▐█▀▀▀▀  ▝▀▀▀▀█▙   ▐█    ▐█▀▀▀▀█▌
@@ -34,7 +107,7 @@ export const tinyAsciiLogo = `
     ▀     ▀▀▀▀▀▀  ▀▀▀▀▀▀    ▀▀    ▀▀    ▀▀
 `;
 
-export const shortAsciiLogoCompactText = `
+const shortVestaLogoCompactText = `
  █▌    █▌ █▛▀▀▀▀  ▞▀▀▀▀▜  ▛▀▀▀▀▀▜ ▟▛▀▀▀▀█▙
  ▐█   █▌  ▐█▄▄▄▄ ▐█▄     ▐█   █▌  ▐█▄▄▄▄█▌
   ▜█ █▛   ▐█▀▀▀▀  ▝▀▀▀▀█▙   ▐█    ▐█▀▀▀▀█▌
@@ -42,7 +115,7 @@ export const shortAsciiLogoCompactText = `
     ▀     ▀▀▀▀▀▀  ▀▀▀▀▀▀    ▀▀    ▀▀    ▀▀
 `;
 
-export const longAsciiLogoCompactText = `
+const longVestaLogoCompactText = `
 ███     ███ ██████████  █████████  ███████████    █████████  
 ███     ███ ░███░░░░░░█ ███░░░░░███░░░░░███░░░░  ███░░░░░███ 
 ███     ███ ░███  █ ░  ░███     ░░░     ░███    ░███    ░███ 
@@ -53,7 +126,26 @@ export const longAsciiLogoCompactText = `
    ░░░     ░░░░░░░░░░   ░░░░░░░░░      ░░░░░   ░░░░░  ░░░░░ 
 `;
 
-export const tinyAsciiLogoCompactText = `
+const tinyVestaLogoCompactText = `
  ▌ ▌ ▛▀ ▞▀ ▛▀ ▛▜
  ▜▛  ▙▄ ▝▀ ▐█ ▐█
 `;
+
+
+// --- Dynamic Exports ---
+
+export const shortAsciiLogo = isVestaEnv() ? shortVestaLogo : shortGeminiLogo;
+export const longAsciiLogo = isVestaEnv() ? longVestaLogo : longGeminiLogo;
+export const tinyAsciiLogo = isVestaEnv() ? tinyVestaLogo : tinyGeminiLogo;
+
+export const shortAsciiLogoCompactText = isVestaEnv()
+  ? shortVestaLogoCompactText
+  : shortGeminiLogoCompactText;
+
+export const longAsciiLogoCompactText = isVestaEnv()
+  ? longVestaLogoCompactText
+  : longGeminiLogoCompactText;
+
+export const tinyAsciiLogoCompactText = isVestaEnv()
+  ? tinyVestaLogoCompactText
+  : tinyGeminiLogoCompactText;

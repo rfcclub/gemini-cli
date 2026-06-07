@@ -49,6 +49,7 @@ const mockUseSettings = vi.fn().mockReturnValue({
   merged: {
     ui: {
       inlineThinkingMode: 'off',
+      animations: true,
     },
   },
 });
@@ -366,6 +367,7 @@ describe('MainContent', () => {
       merged: {
         ui: {
           inlineThinkingMode: 'off',
+          animations: true,
         },
       },
     });

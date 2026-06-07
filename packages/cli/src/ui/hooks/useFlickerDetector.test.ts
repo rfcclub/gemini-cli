@@ -106,7 +106,7 @@ describe('useFlickerDetector', () => {
   it('should re-evaluate on re-render', async () => {
     // Start with a valid height
     mockMeasureElement.mockReturnValue({ width: 80, height: 20 });
-    const { rerender } = await renderHook(() =>
+    const { rerender, waitUntilReady } = await renderHook(() =>
       useFlickerDetector(mockRef, 25),
     );
     expect(mockRecordFlickerFrame).not.toHaveBeenCalled();
@@ -114,6 +114,7 @@ describe('useFlickerDetector', () => {
     // Now, simulate a re-render where the height is too great
     mockMeasureElement.mockReturnValue({ width: 80, height: 30 });
     rerender();
+    await waitUntilReady();
 
     expect(mockRecordFlickerFrame).toHaveBeenCalledTimes(1);
     expect(mockAppEventsEmit).toHaveBeenCalledTimes(1);

@@ -395,6 +395,10 @@ their corresponding top-level category object in your `settings.json` file.
   - **Description:** Show the spinner during operations.
   - **Default:** `true`
 
+- **`ui.animations`** (boolean):
+  - **Description:** Enable animations in the UI.
+  - **Default:** `false`
+
 - **`ui.loadingPhrases`** (enum):
   - **Description:** What to show while the model is working: tips, witty
     comments, all, or off.

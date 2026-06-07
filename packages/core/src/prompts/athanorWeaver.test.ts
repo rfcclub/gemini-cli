@@ -35,10 +35,29 @@ describe('AthanorWeaver', () => {
       expect(weaver.getAthanorDir()).toBe(customPath);
     });
 
-    it('falls back to ~/.gemini-vesta/athanor/ if env var is not set', () => {
-      vi.stubEnv('VITEST', ''); // remove VITEST flag to test real fallback
-      const expectedPath = path.join(os.homedir(), '.gemini-vesta', 'athanor');
-      expect(weaver.getAthanorDir()).toBe(expectedPath);
+    it('checks multiple candidates and returns the first existing one', () => {
+      vi.stubEnv('VITEST', '');
+      const path2 = path.join(
+        os.homedir(),
+        'agora',
+        'familia',
+        'vesta',
+        'athanor',
+      );
+
+      vi.mocked(fs.existsSync).mockImplementation((p) => {
+        if (p === path2) return true;
+        return false;
+      });
+
+      expect(weaver.getAthanorDir()).toBe(path2);
+    });
+
+    it('falls back to the first candidate if none exist', () => {
+      vi.stubEnv('VITEST', '');
+      const path1 = path.join(os.homedir(), '.gemini-vesta', 'athanor');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      expect(weaver.getAthanorDir()).toBe(path1);
     });
   });
 

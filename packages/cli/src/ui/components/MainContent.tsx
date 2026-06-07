@@ -30,7 +30,7 @@ const MemoizedAppHeader = memo(AppHeader);
 // issues in the worst case if we somehow get an enormous response from Gemini.
 // This threshold is arbitrary but should be high enough to never impact normal
 // usage.
-export const MainContent = () => {
+export const MainContent = memo(() => {
   const { version } = useAppContext();
   const uiState = useUIState();
   const isAlternateBufferOrTerminalBuffer = useAlternateBuffer();
@@ -320,4 +320,4 @@ export const MainContent = () => {
       {pendingItems}
     </>
   );
-};
+});

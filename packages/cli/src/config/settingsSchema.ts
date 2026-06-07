@@ -851,6 +851,15 @@ const SETTINGS_SCHEMA = {
         description: 'Show the spinner during operations.',
         showInDialog: true,
       },
+      animations: {
+        type: 'boolean',
+        label: 'Animations',
+        category: 'UI',
+        requiresRestart: false,
+        default: false,
+        description: 'Enable animations in the UI.',
+        showInDialog: true,
+      },
       loadingPhrases: {
         type: 'enum',
         label: 'Loading Phrases',
@@ -2327,6 +2336,16 @@ const SETTINGS_SCHEMA = {
           'Enable model steering (user hints) to guide the model during tool execution.',
         showInDialog: true,
       },
+      steeringModel: {
+        type: 'string',
+        label: 'Steering Model',
+        category: 'Experimental',
+        requiresRestart: false,
+        default: 'auto-flash',
+        description:
+          'The model ID to use for processing steering hints (Fast Ack). Use a fast, small model like gemini-1.5-flash for best results.',
+        showInDialog: true,
+      },
       directWebFetch: {
         type: 'boolean',
         label: 'Direct Web Fetch',
@@ -2342,7 +2361,7 @@ const SETTINGS_SCHEMA = {
         label: 'Dynamic Model Configuration',
         category: 'Experimental',
         requiresRestart: true,
-        default: false,
+        default: true,
         description:
           'Enable dynamic model configuration (definitions, resolutions, and chains) via settings.',
         showInDialog: false,

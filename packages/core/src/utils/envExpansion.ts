@@ -24,13 +24,11 @@ export function expandEnvVars(
 ): string {
   if (!str) return str;
 
-  // 1. Pre-process Windows-style variables (%VAR%) since dotenv-expand only handles POSIX ($VAR).
-  // We only do this on Windows to limit the blast radius and avoid conflicts with other
-  // systems where % might be a literal character (e.g. in URLs or shell commands).
-  const isWindows = process.platform === 'win32';
-  const processedStr = isWindows
-    ? str.replace(/%(\w+)%/g, (_, name) => env[name] ?? '')
-    : str;
+  // 1. Pre-process ${env:VAR} and Windows-style variables (%VAR%) since dotenv-expand
+  // only handles POSIX ($VAR, ${VAR}).
+  const processedStr = str
+    .replace(/\${env:(\w+)}/g, '${$1}')
+    .replace(/%(\w+)%/g, (_, name) => (process.platform === 'win32' ? env[name] ?? '' : '%$1%'));
 
   // 2. Use dotenv-expand for POSIX/Bash syntax ($VAR, ${VAR}).
   // dotenv-expand is designed to process an object of key-value pairs (like a .env file).

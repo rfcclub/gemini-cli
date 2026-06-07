@@ -981,6 +981,15 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
           const router = this.context.config.getModelRouterService();
           const decision = await router.route(routingContext);
           modelToUse = decision.model;
+
+          if (decision.enabledTools) {
+            const toolDeclarations =
+              this.context.toolRegistry.getFunctionDeclarationsFiltered(
+                decision.enabledTools,
+                modelToUse,
+              );
+            chat.setTools([{ functionDeclarations: toolDeclarations }]);
+          }
         } catch (error) {
           debugLogger.warn(`Error during model routing: ${error}`);
           modelToUse = DEFAULT_GEMINI_MODEL;

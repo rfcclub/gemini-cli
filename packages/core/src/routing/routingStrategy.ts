@@ -16,6 +16,11 @@ export interface RoutingDecision {
   /** The model identifier string to use for the next API call (e.g., 'gemini-2.5-pro'). */
   model: string;
   /**
+   * The list of tool names that should be provided to the model.
+   * If undefined, all available tools are provided.
+   */
+  enabledTools?: string[];
+  /**
    * Metadata about the routing decision for logging purposes.
    */
   metadata: {

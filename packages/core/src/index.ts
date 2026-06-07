@@ -318,3 +318,4 @@ export { isBinaryAvailable } from './utils/binaryCheck.js';
 export * from './caching/cacheManager.js';
 export * from './telemetry/telemetryStore.js';
 export * from './utils/resilientBlockMatcher.js';
+export { generateSteeringAckMessage } from './utils/fastAckHelper.js';

@@ -15,6 +15,7 @@ import type {
 import type { Config } from '../config/config.js';
 import type { ContentGenerator, AuthType } from './contentGenerator.js';
 import { handleFallback } from '../fallback/handler.js';
+import { ProviderFactory } from './providerFactory.js';
 import { getResponseText } from '../utils/partUtils.js';
 import { reportError } from '../utils/errorReporting.js';
 import { getErrorMessage } from '../utils/errors.js';
@@ -346,6 +347,14 @@ export class BaseLlmClient {
           config: finalConfig,
           contents,
         };
+        const provider = ProviderFactory.getProvider(currentModel);
+        if (provider) {
+          return provider.generateContent(
+            requestParams,
+            promptId,
+            role,
+          );
+        }
         return this.contentGenerator.generateContent(
           requestParams,
           promptId,

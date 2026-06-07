@@ -51,5 +51,6 @@ export interface CoreToolSet {
   activate_skill: (skillNames: string[]) => FunctionDeclaration;
   read_mcp_resource: FunctionDeclaration;
   list_mcp_resources: FunctionDeclaration;
+  visual_ui_forge: FunctionDeclaration;
   update_topic?: FunctionDeclaration;
 }

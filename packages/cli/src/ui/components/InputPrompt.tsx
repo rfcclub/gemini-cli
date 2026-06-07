@@ -12,6 +12,7 @@ import {
   useRef,
   useMemo,
   Fragment,
+  memo,
 } from 'react';
 import clipboardy from 'clipboardy';
 import { Box, Text, useStdout, type DOMElement } from 'ink';
@@ -95,6 +96,8 @@ import { useKeyMatchers } from '../hooks/useKeyMatchers.js';
 import type { VimMode } from '../contexts/VimModeContext.js';
 
 const SCROLLBAR_GUTTER_WIDTH = 1;
+const EMPTY_TRANSFORMATIONS: any[] = [];
+const EMPTY_CURSOR: [number, number] = [0, 0];
 
 /**
  * Returns if the terminal can be trusted to handle paste events atomically
@@ -203,6 +206,173 @@ export function tryTogglePasteExpansion(buffer: TextBuffer): boolean {
   });
   return true;
 }
+
+interface InputLineProps {
+  lineText: string;
+  absoluteVisualIdx: number;
+  mapEntry: [number, number];
+  logicalLine: string;
+  transformations: any[];
+  visualStartCol: number;
+  focus: boolean;
+  isOnCursorLine: boolean;
+  cursorVisualColAbsolute: number;
+  showCursor: boolean;
+  inlineGhost: string;
+  inputWidth: number;
+  cursorPosition: [number, number];
+}
+
+const InputLine = memo(
+  ({
+    lineText,
+    absoluteVisualIdx,
+    mapEntry,
+    logicalLine,
+    transformations,
+    visualStartCol,
+    focus,
+    isOnCursorLine,
+    cursorVisualColAbsolute,
+    showCursor,
+    inlineGhost,
+    inputWidth,
+    cursorPosition,
+  }: InputLineProps) => {
+    const [logicalLineIdx] = mapEntry;
+    const cursorOnThisLine = focus && cursorPosition[0] === logicalLineIdx;
+
+    const tokens = useMemo(() => {
+      return parseInputForHighlighting(
+        logicalLine,
+        logicalLineIdx,
+        transformations,
+        ...(cursorOnThisLine ? [cursorPosition[1]] : []),
+      );
+    }, [
+      logicalLine,
+      logicalLineIdx,
+      transformations,
+      cursorOnThisLine,
+      cursorOnThisLine ? cursorPosition[1] : -1,
+    ]);
+
+    const segments = useMemo(() => {
+      const visualEndCol = visualStartCol + cpLen(lineText);
+      return parseSegmentsFromTokens(tokens, visualStartCol, visualEndCol);
+    }, [tokens, visualStartCol, lineText]);
+
+    const renderedLineContent = useMemo(() => {
+      const result: React.ReactNode[] = [];
+      let charCount = 0;
+      segments.forEach((seg, segIdx) => {
+        const segLen = cpLen(seg.text);
+        let display = seg.text;
+        if (isOnCursorLine) {
+          const relCol = cursorVisualColAbsolute;
+          const segStart = charCount;
+          const segEnd = segStart + segLen;
+          if (relCol >= segStart && relCol < segEnd) {
+            const charToHighlight = cpSlice(
+              display,
+              relCol - segStart,
+              relCol - segStart + 1,
+            );
+            const highlighted = showCursor
+              ? chalk.inverse(charToHighlight)
+              : charToHighlight;
+            display =
+              cpSlice(display, 0, relCol - segStart) +
+              highlighted +
+              cpSlice(display, relCol - segStart + 1);
+          }
+          charCount = segEnd;
+        } else {
+          charCount += segLen;
+        }
+        const color =
+          seg.type === 'command' || seg.type === 'file' || seg.type === 'paste'
+            ? theme.text.accent
+            : theme.text.primary;
+        result.push(
+          <Text key={`token-${segIdx}`} color={color}>
+            {display}
+          </Text>,
+        );
+      });
+      return result;
+    }, [segments, isOnCursorLine, cursorVisualColAbsolute, showCursor]);
+
+    const currentLineGhost = isOnCursorLine ? inlineGhost : '';
+    if (
+      isOnCursorLine &&
+      cursorVisualColAbsolute === cpLen(lineText) &&
+      !currentLineGhost
+    ) {
+      renderedLineContent.push(
+        <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
+          {showCursor ? chalk.inverse(' ') : ' '}
+        </Text>,
+      );
+    }
+    const showCursorBeforeGhost =
+      focus &&
+      isOnCursorLine &&
+      cursorVisualColAbsolute === cpLen(lineText) &&
+      currentLineGhost;
+
+    return (
+      <Box height={1}>
+        <Text
+          terminalCursorFocus={showCursor && isOnCursorLine}
+          terminalCursorPosition={cpIndexToOffset(
+            lineText,
+            cursorVisualColAbsolute,
+          )}
+        >
+          {renderedLineContent}
+          {showCursorBeforeGhost && (showCursor ? chalk.inverse(' ') : ' ')}
+          {currentLineGhost && (
+            <Text color={theme.text.secondary}>{currentLineGhost}</Text>
+          )}
+        </Text>
+      </Box>
+    );
+  },
+  (prev: InputLineProps, next: InputLineProps) => {
+    return (
+      prev.lineText === next.lineText &&
+      prev.absoluteVisualIdx === next.absoluteVisualIdx &&
+      prev.mapEntry[0] === next.mapEntry[0] &&
+      prev.mapEntry[1] === next.mapEntry[1] &&
+      prev.logicalLine === next.logicalLine &&
+      prev.transformations === next.transformations &&
+      prev.visualStartCol === next.visualStartCol &&
+      prev.focus === next.focus &&
+      prev.isOnCursorLine === next.isOnCursorLine &&
+      prev.cursorVisualColAbsolute === next.cursorVisualColAbsolute &&
+      prev.showCursor === next.showCursor &&
+      prev.inlineGhost === next.inlineGhost &&
+      prev.inputWidth === next.inputWidth &&
+      prev.cursorPosition[0] === next.cursorPosition[0] &&
+      prev.cursorPosition[1] === next.cursorPosition[1]
+    );
+  },
+);
+
+const GhostLine = memo(
+  ({ ghostLine, inputWidth }: { ghostLine: string; inputWidth: number }) => {
+    const padding = Math.max(0, inputWidth - stringWidth(ghostLine));
+    return (
+      <Box height={1}>
+        <Text color={theme.text.secondary}>
+          {ghostLine}
+          {' '.repeat(padding)}
+        </Text>
+      </Box>
+    );
+  },
+);
 
 export const InputPrompt: React.FC<InputPromptProps> = ({
   onSubmit,
@@ -385,9 +555,10 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const showCursor =
     focus && isShellFocused && !isEmbeddedShellFocused && !copyModeEnabled;
 
+  const visualLinesCount = buffer.allVisualLines.length;
   useEffect(() => {
     appEvents.emit(AppEvent.ScrollToBottom);
-  }, [buffer.text, buffer.cursor]);
+  }, [visualLinesCount]);
 
   // Notify parent component about escape prompt state changes
   useEffect(() => {
@@ -1427,7 +1598,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const [cursorVisualRowAbsolute, cursorVisualColAbsolute] =
     buffer.visualCursor;
 
-  const getGhostTextLines = useCallback(() => {
+  const ghostTextLines = useMemo(() => {
     if (
       !completion.promptCompletion.text ||
       !buffer.text ||
@@ -1538,7 +1709,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     inputWidth,
   ]);
 
-  const { inlineGhost, additionalLines } = getGhostTextLines();
+  const { inlineGhost, additionalLines } = ghostTextLines;
 
   const scrollableData = useMemo(() => {
     const items: ScrollableItem[] = buffer.allVisualLines.map(
@@ -1563,123 +1734,49 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const renderItem = useCallback(
     ({ item }: { item: ScrollableItem; index: number }) => {
       if (item.type === 'ghostLine') {
-        const padding = Math.max(0, inputWidth - stringWidth(item.ghostLine));
         return (
-          <Box height={1}>
-            <Text color={theme.text.secondary}>
-              {item.ghostLine}
-              {' '.repeat(padding)}
-            </Text>
-          </Box>
+          <GhostLine ghostLine={item.ghostLine} inputWidth={inputWidth} />
         );
       }
 
       const { lineText, absoluteVisualIdx } = item;
-      // console.log('renderItem called with:', lineText);
       const mapEntry = buffer.visualToLogicalMap[absoluteVisualIdx];
       if (!mapEntry) return <Text> </Text>;
 
-      const isOnCursorLine =
-        focus && absoluteVisualIdx === cursorVisualRowAbsolute;
-      const renderedLine: React.ReactNode[] = [];
       const [logicalLineIdx] = mapEntry;
       const logicalLine = buffer.lines[logicalLineIdx] || '';
       const transformations =
-        buffer.transformationsByLine[logicalLineIdx] ?? [];
-      const tokens = parseInputForHighlighting(
-        logicalLine,
-        logicalLineIdx,
-        transformations,
-        ...(focus && buffer.cursor[0] === logicalLineIdx
-          ? [buffer.cursor[1]]
-          : []),
-      );
+        buffer.transformationsByLine[logicalLineIdx] ?? EMPTY_TRANSFORMATIONS;
       const visualStartCol =
         buffer.visualToTransformedMap[absoluteVisualIdx] ?? 0;
-      const visualEndCol = visualStartCol + cpLen(lineText);
-      const segments = parseSegmentsFromTokens(
-        tokens,
-        visualStartCol,
-        visualEndCol,
-      );
-      let charCount = 0;
-      segments.forEach((seg, segIdx) => {
-        const segLen = cpLen(seg.text);
-        let display = seg.text;
-        if (isOnCursorLine) {
-          const relCol = cursorVisualColAbsolute;
-          const segStart = charCount;
-          const segEnd = segStart + segLen;
-          if (relCol >= segStart && relCol < segEnd) {
-            const charToHighlight = cpSlice(
-              display,
-              relCol - segStart,
-              relCol - segStart + 1,
-            );
-            const highlighted = showCursor
-              ? chalk.inverse(charToHighlight)
-              : charToHighlight;
-            display =
-              cpSlice(display, 0, relCol - segStart) +
-              highlighted +
-              cpSlice(display, relCol - segStart + 1);
-          }
-          charCount = segEnd;
-        } else {
-          charCount += segLen;
-        }
-        const color =
-          seg.type === 'command' || seg.type === 'file' || seg.type === 'paste'
-            ? theme.text.accent
-            : theme.text.primary;
-        renderedLine.push(
-          <Text key={`token-${segIdx}`} color={color}>
-            {display}
-          </Text>,
-        );
-      });
 
-      const currentLineGhost = isOnCursorLine ? inlineGhost : '';
-      if (
-        isOnCursorLine &&
-        cursorVisualColAbsolute === cpLen(lineText) &&
-        !currentLineGhost
-      ) {
-        renderedLine.push(
-          <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
-            {showCursor ? chalk.inverse(' ') : ' '}
-          </Text>,
-        );
-      }
-      const showCursorBeforeGhost =
-        focus &&
-        isOnCursorLine &&
-        cursorVisualColAbsolute === cpLen(lineText) &&
-        currentLineGhost;
       return (
-        <Box height={1}>
-          <Text
-            terminalCursorFocus={showCursor && isOnCursorLine}
-            terminalCursorPosition={cpIndexToOffset(
-              lineText,
-              cursorVisualColAbsolute,
-            )}
-          >
-            {renderedLine}
-            {showCursorBeforeGhost && (showCursor ? chalk.inverse(' ') : ' ')}
-            {currentLineGhost && (
-              <Text color={theme.text.secondary}>{currentLineGhost}</Text>
-            )}
-          </Text>
-        </Box>
+        <InputLine
+          key={`line-${absoluteVisualIdx}`}
+          lineText={lineText}
+          absoluteVisualIdx={absoluteVisualIdx}
+          mapEntry={mapEntry}
+          logicalLine={logicalLine}
+          transformations={transformations}
+          visualStartCol={visualStartCol}
+          focus={focus}
+          isOnCursorLine={
+            focus && absoluteVisualIdx === cursorVisualRowAbsolute
+          }
+          cursorVisualColAbsolute={cursorVisualColAbsolute}
+          showCursor={showCursor}
+          inlineGhost={inlineGhost}
+          inputWidth={inputWidth}
+          cursorPosition={focus ? buffer.cursor : EMPTY_CURSOR}
+        />
       );
     },
     [
       buffer.visualToLogicalMap,
       buffer.lines,
       buffer.transformationsByLine,
-      buffer.cursor,
       buffer.visualToTransformedMap,
+      buffer.cursor,
       focus,
       cursorVisualRowAbsolute,
       cursorVisualColAbsolute,
@@ -1810,7 +1907,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         />
       ) : null}
       <HalfLinePaddedBox
-        backgroundBaseColor={theme.background.input}
+        backgroundBaseColor="black"
         backgroundOpacity={1}
         useBackgroundColor={useBackgroundColor}
       >

@@ -26,6 +26,7 @@ import {
   ENTER_PLAN_MODE_TOOL_NAME,
   READ_MCP_RESOURCE_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
+  VISUAL_UI_FORGE_TOOL_NAME,
   // Shared parameter names
   PARAM_FILE_PATH,
   PARAM_DIR_PATH,
@@ -743,6 +744,28 @@ The agent did not use the todo list because this task could be completed by a ti
         },
       },
       required: [],
+    },
+  },
+
+  visual_ui_forge: {
+    name: VISUAL_UI_FORGE_TOOL_NAME,
+    description:
+      'Style a user interface component/page based on a visual mockup image and the original code file. Safe for component state and hooks.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        mockupPath: {
+          type: 'string',
+          description:
+            'Absolute path to the reference visual mockup image (PNG or JPEG)',
+        },
+        targetFilePath: {
+          type: 'string',
+          description:
+            'Absolute path to the target code file (e.g. TSX, JSX, HTML, CSS) to style',
+        },
+      },
+      required: ['mockupPath', 'targetFilePath'],
     },
   },
 };

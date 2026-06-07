@@ -10,7 +10,20 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const GEMINI_DIR = '.gemini';
+const isVestaEnv = () => {
+  if (process.env['VITEST']) {
+    return false;
+  }
+  return (
+    process.env['VESTA_ATHANOR_DIR'] !== undefined ||
+    process.env['ATHANOR_DIR'] !== undefined ||
+    process.argv.some((arg) => arg.includes('gemini-vesta') || arg.includes('gemini_vesta'))
+  );
+};
+
+export const GEMINI_DIR =
+  process.env['GEMINI_CONFIG_DIR_NAME'] ||
+  (isVestaEnv() ? '.gemini-vesta' : '.gemini');
 export const GOOGLE_ACCOUNTS_FILENAME = 'google_accounts.json';
 export const TRUSTED_FOLDERS_FILENAME = 'trustedFolders.json';
 

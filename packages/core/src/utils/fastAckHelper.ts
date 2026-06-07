@@ -113,6 +113,7 @@ function buildSteeringFallbackMessage(hintText: string): string {
 export async function generateSteeringAckMessage(
   llmClient: BaseLlmClient,
   hintText: string,
+  modelConfigKey?: ModelConfigKey,
 ): Promise<string> {
   const fallbackText = buildSteeringFallbackMessage(hintText);
 
@@ -131,6 +132,7 @@ export async function generateSteeringAckMessage(
       maxInputChars: STEERING_ACK_MAX_INPUT_CHARS,
       maxOutputChars: STEERING_ACK_MAX_OUTPUT_CHARS,
       promptId: 'steering-ack',
+      modelConfigKey,
     });
   } finally {
     clearTimeout(timeout);

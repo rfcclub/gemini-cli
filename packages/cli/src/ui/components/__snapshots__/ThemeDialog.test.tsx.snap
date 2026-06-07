@@ -148,9 +148,9 @@ exports[`ThemeDialog Snapshots > should render correctly in theme selection mode
 │                                              │  Value     Name                                 │ │
 │                                              │   #0000…  backgroun Main terminal background    │ │
 │                                              │           d.primary color                       │ │
-│                                              │   #5F5…  backgroun  Subtle background for       │ │
+│                                              │   #000…  backgroun  Subtle background for       │ │
 │                                              │          d.message  message blocks              │ │
-│                                              │   #5F5…   backgroun Background for the input    │ │
+│                                              │   #000…   backgroun Background for the input    │ │
 │                                              │           d.input   prompt                      │ │
 │                                              │   #00…   background. Background highlight for   │ │
 │                                              │          focus       selected/focused items     │ │

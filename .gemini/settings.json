@@ -2,14 +2,23 @@
   "experimental": {
     "extensionReloading": true,
     "modelSteering": true,
+    "steeringModel": "auto-flash",
     "autoMemory": true,
     "topicUpdateNarration": true,
     "voiceMode": true,
+    "dynamicModelConfiguration": true,
     "adk": {
       "agentSessionNoninteractiveEnabled": true
     }
   },
   "general": {
     "devtools": true
+  },
+  "ui": {
+    "animations": false,
+    "autoThemeSwitching": false,
+    "inlineThinkingMode": "full",
+    "showSpinner": true,
+    "loadingPhrases": "all"
   }
 }

@@ -496,7 +496,13 @@ export const simulateClick = async (
   });
 };
 
-export const mockSettings = createMockSettings();
+export const mockSettings = createMockSettings({
+  merged: {
+    ui: {
+      animations: true,
+    },
+  },
+});
 
 // A minimal mock UIState to satisfy the context provider.
 // Tests that need specific UIState values should provide their own.

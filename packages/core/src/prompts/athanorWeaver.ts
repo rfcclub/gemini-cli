@@ -17,17 +17,30 @@ export class AthanorWeaver {
 
   /**
    * Resolves the directory path for Athanor.
-   * Prioritizes VESTA_ATHANOR_DIR environment variable, falls back to ~/.gemini-vesta/athanor/
+   * Prioritizes VESTA_ATHANOR_DIR environment variable, falls back to common locations.
    */
   public getAthanorDir(): string | undefined {
-    const envDir = process.env['VESTA_ATHANOR_DIR'] || process.env['ATHANOR_DIR'];
+    const envDir =
+      process.env['VESTA_ATHANOR_DIR'] || process.env['ATHANOR_DIR'];
     if (envDir) {
       return envDir;
     }
     if (process.env['VITEST']) {
-        return undefined; // Do not load real Athanor files during tests unless explicitly mocked
+      return undefined; // Do not load real Athanor files during tests unless explicitly mocked
     }
-    return path.join(os.homedir(), '.gemini-vesta', 'athanor');
+
+    const candidates = [
+      path.join(os.homedir(), '.gemini-vesta', 'athanor'),
+      path.join(os.homedir(), 'agora', 'familia', 'vesta', 'athanor'),
+    ];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    return candidates[0];
   }
 
   /**

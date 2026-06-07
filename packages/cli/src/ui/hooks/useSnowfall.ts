@@ -12,6 +12,7 @@ import { Holiday } from '../themes/builtin/dark/holiday-dark.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { useTerminalSize } from './useTerminalSize.js';
 import { shortAsciiLogo } from '../components/AsciiArt.js';
+import { useSettings } from '../contexts/SettingsContext.js';
 
 interface Snowflake {
   x: number;
@@ -58,6 +59,8 @@ const addHolidayTrees = (art: string): string => {
 };
 
 export const useSnowfall = (displayTitle: string): string => {
+  const settings = useSettings();
+  const animationsEnabled = settings.merged.ui?.animations === true;
   const isHolidaySeason =
     new Date().getMonth() === 11 || new Date().getMonth() === 0;
 
@@ -81,6 +84,7 @@ export const useSnowfall = (displayTitle: string): string => {
   }, [historyRemountKey]);
 
   const showAnimation =
+    animationsEnabled &&
     isHolidaySeason &&
     currentTheme.name === Holiday.name &&
     terminalWidth >= widthOfShortLogo &&

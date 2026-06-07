@@ -91,6 +91,7 @@ import {
   ApiKeyUpdatedEvent,
   LegacyAgentProtocol,
   type InjectionSource,
+  generateSteeringAckMessage,
 } from '@google/gemini-cli-core';
 import { validateAuthMethod } from '../config/auth.js';
 import process from 'node:process';
@@ -1355,19 +1356,35 @@ Logging in with Google... Restarting Gemini CLI to continue.
   );
 
   const handleHintSubmit = useCallback(
-    (hint: string) => {
+    async (hint: string) => {
       const trimmed = hint.trim();
       if (!trimmed) {
         return;
       }
-      config.injectionService.addInjection(trimmed, 'user_steering');
-      // Render hints with a distinct style.
+      config.injectionService.addInjection(trimmed, "user_steering");
       historyManager.addItem({
-        type: 'hint',
+        type: "hint",
         text: trimmed,
       });
+
+      const steeringModel = settings.merged.experimental?.steeringModel;
+      const modelConfigKey = steeringModel ? { model: steeringModel } : undefined;
+
+      try {
+        const ack = await generateSteeringAckMessage(
+          config.getBaseLlmClient(),
+          trimmed,
+          modelConfigKey,
+        );
+        if (ack) {
+          historyManager.addItem({
+            type: "gemini",
+            text: ack,
+          });
+        }
+      } catch (e) {}
     },
-    [config, historyManager],
+    [config, historyManager, settings],
   );
 
   const handleFinalSubmit = useCallback(

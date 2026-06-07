@@ -544,6 +544,13 @@
           "default": true,
           "type": "boolean"
         },
+        "animations": {
+          "title": "Animations",
+          "description": "Enable animations in the UI.",
+          "markdownDescription": "Enable animations in the UI.\n\n- Category: `UI`\n- Requires restart: `no`\n- Default: `false`",
+          "default": false,
+          "type": "boolean"
+        },
         "loadingPhrases": {
           "title": "Loading Phrases",
           "description": "What to show while the model is working: tips, witty comments, all, or off.",

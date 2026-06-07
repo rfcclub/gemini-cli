@@ -6,6 +6,7 @@
 
 import type { GenerateContentConfig } from '@google/genai';
 import type { ModelPolicy } from '../availability/modelPolicy.js';
+import { ProviderRegistry } from './providerRegistry.js';
 import {
   getDisplayString,
   PREVIEW_GEMINI_3_1_MODEL,
@@ -217,7 +218,22 @@ export class ModelConfigService {
       return true;
     });
 
-    return [...mainOptions, ...uniqueManualOptions];
+    const externalProviders = ProviderRegistry.getInstance().getAllProviders();
+    const externalOptions = Array.from(externalProviders.entries()).map(
+      ([name, config]) => {
+        const modelId = config.defaultModel
+          ? `${name}/${config.defaultModel}`
+          : name;
+        return {
+          modelId,
+          name: modelId,
+          description: `External model from ${name} provider (${config.type})`,
+          tier: 'custom',
+        };
+      },
+    );
+
+    return [...mainOptions, ...uniqueManualOptions, ...externalOptions];
   }
 
   getModelDefinition(modelId: string): ModelDefinition | undefined {

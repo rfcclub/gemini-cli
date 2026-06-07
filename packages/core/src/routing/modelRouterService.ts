@@ -6,30 +6,35 @@
 
 import { GemmaClassifierStrategy } from './strategies/gemmaClassifierStrategy.js';
 import type { Config } from '../config/config.js';
+import { ClassifierStrategy } from './strategies/classifierStrategy.js';
+import { CompositeStrategy } from './strategies/compositeStrategy.js';
+import { DefaultStrategy } from './strategies/defaultStrategy.js';
+import { FallbackStrategy } from './strategies/fallbackStrategy.js';
+import { NumericalClassifierStrategy } from './strategies/numericalClassifierStrategy.js';
+import { OverrideStrategy } from './strategies/overrideStrategy.js';
+import { ApprovalModeStrategy } from './strategies/approvalModeStrategy.js';
+import { DeterministicToolRoutingStrategy } from './strategies/deterministicToolRoutingStrategy.js';
+import { AffirmationGuard } from '../utils/affirmationGuard.js';
+
+import { logModelRouting } from '../telemetry/loggers.js';
+import { ModelRoutingEvent } from '../telemetry/types.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { partListUnionToString } from '../core/geminiRequest.js';
+
 import type {
   RoutingContext,
   RoutingDecision,
   RoutingStrategy,
   TerminalStrategy,
 } from './routingStrategy.js';
-import { DefaultStrategy } from './strategies/defaultStrategy.js';
-import { ClassifierStrategy } from './strategies/classifierStrategy.js';
-import { NumericalClassifierStrategy } from './strategies/numericalClassifierStrategy.js';
-import { CompositeStrategy } from './strategies/compositeStrategy.js';
-import { FallbackStrategy } from './strategies/fallbackStrategy.js';
-import { OverrideStrategy } from './strategies/overrideStrategy.js';
-import { ApprovalModeStrategy } from './strategies/approvalModeStrategy.js';
-
-import { logModelRouting } from '../telemetry/loggers.js';
-import { ModelRoutingEvent } from '../telemetry/types.js';
-import { debugLogger } from '../utils/debugLogger.js';
 
 /**
- * A centralized service for making model routing decisions.
+ * Service responsible for determining which model to use for a given request.
+ * It uses a chain of strategies to make this decision.
  */
 export class ModelRouterService {
-  private config: Config;
-  private strategy: TerminalStrategy;
+  private readonly config: Config;
+  private readonly strategy: TerminalStrategy;
 
   constructor(config: Config) {
     this.config = config;
@@ -86,6 +91,30 @@ export class ModelRouterService {
     let error_message: string | undefined;
 
     try {
+      // PHASE 0: Affirmation Guard (Fast Path)
+      const promptText = partListUnionToString(context.request);
+      if (AffirmationGuard.isAffirmation(promptText)) {
+        decision = {
+          model: this.config.getModel(),
+          metadata: {
+            source: 'AffirmationGuard',
+            latencyMs: Date.now() - startTime,
+            reasoning: 'User provided a simple affirmation. Bypassing complex routing.',
+          },
+        };
+        return decision;
+      }
+
+      // PHASE 1: Deterministic Tool Pruning (Cognition Adapter)
+      const toolRouter = new DeterministicToolRoutingStrategy();
+      const toolDecision = await toolRouter.route(
+        context,
+        this.config,
+        this.config.getBaseLlmClient(),
+        this.config.getLocalLiteRtLmClient(),
+      );
+
+      // PHASE 2: Model Routing
       decision = await this.strategy.route(
         context,
         this.config,
@@ -93,15 +122,23 @@ export class ModelRouterService {
         this.config.getLocalLiteRtLmClient(),
       );
 
+      // Merge enabledTools from toolDecision if present
+      if (toolDecision?.enabledTools) {
+        decision.enabledTools = toolDecision.enabledTools;
+        decision.metadata = {
+          ...decision.metadata,
+          reasoning: (decision.metadata.reasoning || '') + `\n[Tool Pruning] ${toolDecision.metadata.reasoning}`,
+        };
+      }
+
       debugLogger.debug(
         `[Routing] Selected model: ${decision.model} (Source: ${decision.metadata.source}, Latency: ${decision.metadata.latencyMs}ms)\n\t[Routing] Reasoning: ${decision.metadata.reasoning}`,
       );
     } catch (e) {
       failed = true;
       error_message = e instanceof Error ? e.message : String(e);
-      // Create a fallback decision for logging purposes
-      // We do not actually route here. This should never happen so we should
-      // fail loudly to catch any issues where this happens.
+      debugLogger.warn(`[Routing] ModelRouterService failed:`, e);
+      // Fallback to default decision on failure
       decision = {
         model: this.config.getModel(),
         metadata: {
@@ -111,10 +148,6 @@ export class ModelRouterService {
           error: error_message,
         },
       };
-
-      debugLogger.debug(
-        `[Routing] Exception during routing: ${error_message}\n\tFallback model: ${decision.model} (Source: ${decision.metadata.source})`,
-      );
     } finally {
       const event = new ModelRoutingEvent(
         decision?.model || 'unknown',

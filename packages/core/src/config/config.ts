@@ -184,6 +184,7 @@ import { InjectionService } from './injectionService.js';
 import { ExecutionLifecycleService } from '../services/executionLifecycleService.js';
 import { WORKSPACE_POLICY_TIER } from '../policy/config.js';
 import { loadPoliciesFromToml } from '../policy/toml-loader.js';
+import { ProviderRegistry } from '../services/providerRegistry.js';
 
 import { CheckerRunner } from '../safety/checker-runner.js';
 import { ContextBuilder } from '../safety/context-builder.js';
@@ -1444,6 +1445,7 @@ export class Config implements McpContext, AgentLoopContext {
   }
 
   private async _initialize(): Promise<void> {
+    await ProviderRegistry.getInstance().loadFromGlobalConfig();
     await this.storage.initialize();
     ragLogger.initialize(this.storage.getProjectTempLogsDir());
 

@@ -11,6 +11,7 @@ import { CliSpinner } from './CliSpinner.js';
 import type { SpinnerName } from 'cli-spinners';
 import { Colors } from '../colors.js';
 import tinygradient from 'tinygradient';
+import { useSettings } from '../contexts/SettingsContext.js';
 
 const COLOR_CYCLE_DURATION_MS = 4000;
 
@@ -24,6 +25,8 @@ export const GeminiSpinner: React.FC<GeminiSpinnerProps> = ({
   altText,
 }) => {
   const isScreenReaderEnabled = useIsScreenReaderEnabled();
+  const settings = useSettings();
+  const animationsEnabled = settings.merged.ui?.animations === true;
   const [time, setTime] = useState(0);
 
   const googleGradient = useMemo(() => {
@@ -39,7 +42,7 @@ export const GeminiSpinner: React.FC<GeminiSpinnerProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isScreenReaderEnabled) {
+    if (isScreenReaderEnabled || !animationsEnabled) {
       return;
     }
 
@@ -48,10 +51,12 @@ export const GeminiSpinner: React.FC<GeminiSpinnerProps> = ({
     }, 30); // ~33fps for smooth color transitions
 
     return () => clearInterval(interval);
-  }, [isScreenReaderEnabled]);
+  }, [isScreenReaderEnabled, animationsEnabled]);
 
   const progress = (time % COLOR_CYCLE_DURATION_MS) / COLOR_CYCLE_DURATION_MS;
-  const currentColor = googleGradient.rgbAt(progress).toHexString();
+  const currentColor = animationsEnabled
+    ? googleGradient.rgbAt(progress).toHexString()
+    : googleGradient.rgbAt(0).toHexString();
 
   return isScreenReaderEnabled ? (
     <Text>{altText}</Text>

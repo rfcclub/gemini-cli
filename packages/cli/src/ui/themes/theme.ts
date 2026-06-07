@@ -221,8 +221,8 @@ export const darkTheme: ColorsTheme = {
   Comment: '#AFAFAF',
   Gray: '#AFAFAF',
   DarkGray: '#878787',
-  InputBackground: '#5F5F5F',
-  MessageBackground: '#5F5F5F',
+  InputBackground: '#000000',
+  MessageBackground: '#000000',
   FocusBackground: '#005F00',
   GradientColors: ['#4796E4', '#847ACE', '#C3677F'],
 };

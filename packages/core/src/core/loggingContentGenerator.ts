@@ -52,6 +52,7 @@ import {
 import { safeJsonStringify } from '../utils/safeJsonStringify.js';
 import { isMcpToolName } from '../tools/mcp-tool.js';
 import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
+import { ProviderFactory } from './providerFactory.js';
 
 interface StructuredError {
   status: number;
@@ -389,9 +390,9 @@ export class LoggingContentGenerator implements ContentGenerator {
         },
       },
       async ({ metadata: spanMetadata }) => {
+        const startTime = Date.now();
         spanMetadata.input = req.contents;
         await this._applyContextCaching(req);
-        const startTime = Date.now();
         const contents: Content[] = toContents(req.contents);
         const serverDetails = this._getEndpointUrl(req, 'generateContent');
         this.logApiRequest(
@@ -404,11 +405,16 @@ export class LoggingContentGenerator implements ContentGenerator {
         );
 
         try {
-          const response = await this.wrapped.generateContent(
-            req,
-            userPromptId,
-            role,
-          );
+          let response;
+          if (req.model?.includes(':') || req.model?.includes('/')) {
+            response = await (ProviderFactory.getProvider(req.model)?.generateContent(req, userPromptId, role) ?? this.wrapped.generateContent(req, userPromptId, role));
+          } else {
+            response = await this.wrapped.generateContent(
+              req,
+              userPromptId,
+              role,
+            );
+          }
           spanMetadata.output = response.candidates?.[0]?.content ?? null;
           spanMetadata.attributes[GEN_AI_USAGE_INPUT_TOKENS] =
             response.usageMetadata?.promptTokenCount ?? 0;
@@ -481,9 +487,9 @@ export class LoggingContentGenerator implements ContentGenerator {
         },
       },
       async ({ metadata: spanMetadata }) => {
+        const startTime = Date.now();
         spanMetadata.input = req.contents;
         await this._applyContextCaching(req);
-        const startTime = Date.now();
         const serverDetails = this._getEndpointUrl(
           req,
           'generateContentStream',
@@ -506,11 +512,15 @@ export class LoggingContentGenerator implements ContentGenerator {
 
         let stream: AsyncGenerator<GenerateContentResponse>;
         try {
-          stream = await this.wrapped.generateContentStream(
-            req,
-            userPromptId,
-            role,
-          );
+          if (req.model?.includes(':') || req.model?.includes('/')) {
+            stream = await (ProviderFactory.getProvider(req.model)?.generateContentStream(req, userPromptId, role) ?? this.wrapped.generateContentStream(req, userPromptId, role));
+          } else {
+            stream = await this.wrapped.generateContentStream(
+              req,
+              userPromptId,
+              role,
+            );
+          }
         } catch (error) {
           const durationMs = Date.now() - startTime;
 

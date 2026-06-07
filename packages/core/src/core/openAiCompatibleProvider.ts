@@ -18,76 +18,157 @@ import type { LlmRole } from '../telemetry/llmRole.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { ProviderFactory } from './providerFactory.js';
 
-/**
- * Adapter for OpenAI-compatible APIs (DeepSeek, Groq, Ollama, etc.).
- */
 export class OpenAiCompatibleProvider implements LlmProvider {
   constructor(private readonly config: ProviderConfig) {}
 
-  async generateContent(
-    request: GenerateContentParameters,
-    userPromptId: string,
-    role: LlmRole,
-  ): Promise<GenerateContentResponse> {
-    const baseUrl = this.config.baseUrl || 'https://api.openai.com/v1';
-    const apiKey = this.config.apiKey;
-    const rawModel = request.model || this.config.defaultModel;
-    
-    if (!rawModel) {
+  private getModelName(rawModel?: string): string {
+    const modelId = rawModel || this.config.defaultModel;
+    if (!modelId) {
       throw new Error('Model not specified for OpenAI-compatible provider');
     }
+    return ProviderFactory.stripPrefix(modelId);
+  }
 
-    const model = ProviderFactory.stripPrefix(rawModel);
+  private mapMessages(contents: Content[], systemInstruction?: any): any[] {
+    const messages: any[] = [];
 
-    const contents = request.contents as Content[];
+    if (systemInstruction) {
+      messages.push({
+        role: 'system',
+        content:
+          typeof systemInstruction === 'string'
+            ? systemInstruction
+            : systemInstruction.parts?.map((p: any) => p.text).join('') ?? '',
+      });
+    }
 
-    // Map Gemini request to OpenAI request
-    const messages = contents.map((content) => ({
-      role: content.role === 'user' ? 'user' : 'assistant',
-      content: content.parts?.map((p: Part) => p.text).join('') ?? '',
-    }));
-
-    // Map tools
-    const tools = (request.config?.tools as Tool[] | undefined)?.flatMap((t) => 
-      t.functionDeclarations?.map((f) => ({
-        type: 'function',
-        function: {
-          name: f.name,
-          description: f.description,
-          parameters: f.parameters,
-        },
-      }))
+    messages.push(
+      ...contents.map((content) => ({
+        role: content.role === 'user' ? 'user' : 'assistant',
+        content: content.parts?.map((p: Part) => p.text).join('') ?? '',
+      })),
     );
+
+    return messages;
+  }
+
+  /**
+   * Recursively normalizes parameter schemas for OpenAI compatibility.
+   * Converts types to lowercase and handles differences in format.
+   */
+  private normalizeSchema(schema: any): any {
+    if (!schema || typeof schema !== 'object') return schema;
+
+    const normalized: any = { ...schema };
+
+    if (typeof normalized.type === 'string') {
+      normalized.type = normalized.type.toLowerCase();
+    }
+
+    if (normalized.properties) {
+      const newProperties: any = {};
+      for (const [key, value] of Object.entries(normalized.properties)) {
+        newProperties[key] = this.normalizeSchema(value);
+      }
+      normalized.properties = newProperties;
+    }
+
+    if (normalized.items) {
+      normalized.items = this.normalizeSchema(normalized.items);
+    }
+
+    return normalized;
+  }
+
+  private mapTools(requestTools?: Tool[]): any[] | undefined {
+    const tools = requestTools?.flatMap((t) =>
+      t.functionDeclarations?.map((f) => {
+        // Use either parameters or parametersJsonSchema (legacy)
+        const rawParameters = f.parameters || (f as any).parametersJsonSchema;
+        const normalizedParameters = rawParameters 
+          ? this.normalizeSchema(rawParameters)
+          : { type: 'object', properties: {} };
+
+        return {
+          type: 'function',
+          function: {
+            name: f.name,
+            description: f.description || '',
+            parameters: normalizedParameters,
+          },
+        };
+      }),
+    );
+
+    return tools && tools.length > 0 ? tools : undefined;
+  }
+
+  private createRequestBody(
+    request: GenerateContentParameters,
+    model: string,
+    messages: any[],
+    stream: boolean,
+  ): any {
+    const tools = this.mapTools(request.config?.tools as Tool[] | undefined);
 
     const body: any = {
       model,
       messages,
-      stream: false,
-      ...request.config,
+      stream,
+      temperature: request.config?.temperature,
+      top_p: request.config?.topP,
+      max_tokens: request.config?.maxOutputTokens,
+      stop:
+        request.config?.stopSequences && request.config.stopSequences.length > 0
+          ? request.config.stopSequences
+          : undefined,
+      presence_penalty: request.config?.presencePenalty,
+      frequency_penalty: request.config?.frequencyPenalty,
+      reasoning_effort: (request.config as any)?.reasoningEffort,
+      ...(tools && { tools }),
     };
 
-    // Remove tools if empty or not supported in a way that OpenAI expects
-    if (tools && tools.length > 0) {
-      body.tools = tools;
-    } else {
-      delete body.tools;
+    // Special handling for MiniMax reasoning models
+    if (model.includes('MiniMax-M3')) {
+      body.reasoning_split = true;
     }
 
-    // Clean up Gemini-specific config fields that shouldn't go to OpenAI
-    delete body.systemInstruction;
-    delete body.abortSignal;
+    return body;
+  }
 
-    debugLogger.log(`Calling OpenAI-compatible API at ${baseUrl}/chat/completions`);
+  async generateContent(
+    request: GenerateContentParameters,
+    _userPromptId: string,
+    _role: LlmRole,
+  ): Promise<GenerateContentResponse> {
+    const baseUrl = (this.config.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const apiKey = this.config.apiKey;
+    const model = this.getModelName(request.model);
+    const messages = this.mapMessages(
+      request.contents as Content[],
+      request.config?.systemInstruction,
+    );
+    const body = this.createRequestBody(request, model, messages, false);
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-        ...this.config.customHeaders,
-      },
-      body: JSON.stringify(body),
-    });
+    const url = `${baseUrl}/chat/completions`;
+    debugLogger.log(
+      `Calling OpenAI-compatible API at ${url}`,
+    );
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+          ...this.config.customHeaders,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      throw new Error(`Failed to contact OpenAI-compatible API at ${url}: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -96,11 +177,21 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
     const result = await response.json();
     const choice = result.choices[0];
+    if (!choice) {
+      throw new Error('No choice in OpenAI response');
+    }
     const message = choice.message;
 
     const parts: Part[] = [];
     if (message.content) {
       parts.push({ text: message.content });
+    }
+
+    if (message.reasoning_content) {
+      parts.push({
+        text: message.reasoning_content,
+        thought: true,
+      } as any);
     }
 
     if (message.tool_calls) {
@@ -116,7 +207,6 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       }
     }
 
-    // Map OpenAI response back to Gemini response
     return {
       candidates: [
         {
@@ -124,7 +214,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
             role: 'model',
             parts,
           },
-          finishReason: choice.finish_reason === 'tool_calls' ? 'STOP' : 'STOP',
+          finishReason: choice.finish_reason === 'stop' ? 'STOP' : 'STOP',
         },
       ],
       usageMetadata: {
@@ -140,66 +230,34 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     _userPromptId: string,
     _role: LlmRole,
   ): Promise<AsyncGenerator<GenerateContentResponse>> {
-    const baseUrl = this.config.baseUrl || 'https://api.openai.com/v1';
+    const baseUrl = (this.config.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
     const apiKey = this.config.apiKey;
-    const rawModel = request.model || this.config.defaultModel;
-
-    if (!rawModel) {
-      throw new Error('Model not specified for OpenAI-compatible provider');
-    }
-
-    const model = ProviderFactory.stripPrefix(rawModel);
-    const contents = request.contents as Content[];
-
-    // Map Gemini request to OpenAI request
-    const messages = contents.map((content) => ({
-      role: content.role === 'user' ? 'user' : 'assistant',
-      content: content.parts?.map((p: Part) => p.text).join('') ?? '',
-    }));
-
-    // Map tools
-    const tools = (request.config?.tools as Tool[] | undefined)?.flatMap((t) =>
-      t.functionDeclarations?.map((f) => ({
-        type: 'function',
-        function: {
-          name: f.name,
-          description: f.description,
-          parameters: f.parameters,
-        },
-      })),
+    const model = this.getModelName(request.model);
+    const messages = this.mapMessages(
+      request.contents as Content[],
+      request.config?.systemInstruction,
     );
+    const body = this.createRequestBody(request, model, messages, true);
 
-    const body: any = {
-      model,
-      messages,
-      stream: true,
-      ...request.config,
-    };
-
-    // Remove tools if empty or not supported in a way that OpenAI expects
-    if (tools && tools.length > 0) {
-      body.tools = tools;
-    } else {
-      delete body.tools;
-    }
-
-    // Clean up Gemini-specific config fields that shouldn't go to OpenAI
-    delete body.systemInstruction;
-    delete body.abortSignal;
-
+    const url = `${baseUrl}/chat/completions`;
     debugLogger.log(
-      `Calling OpenAI-compatible API (stream) at ${baseUrl}/chat/completions`,
+      `Calling OpenAI-compatible API (stream) at ${url}`,
     );
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-        ...this.config.customHeaders,
-      },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+          ...this.config.customHeaders,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      throw new Error(`Failed to contact OpenAI-compatible API at ${url}: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -248,6 +306,14 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 parts.push({ text: delta.content });
               }
 
+              if (delta?.reasoning_content) {
+                // Map OpenAI-style reasoning content to Gemini thought parts
+                parts.push({
+                  text: delta.reasoning_content,
+                  thought: true,
+                } as any);
+              }
+
               if (delta?.tool_calls) {
                 for (const call of delta.tool_calls) {
                   if (call.type === 'function') {
@@ -265,10 +331,12 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
               let mappedFinishReason: any;
               if (finishReason === 'stop') mappedFinishReason = 'STOP';
-              else if (finishReason === 'length') mappedFinishReason = 'MAX_TOKENS';
+              else if (finishReason === 'length')
+                mappedFinishReason = 'MAX_TOKENS';
               else if (finishReason === 'content_filter')
                 mappedFinishReason = 'SAFETY';
-              else if (finishReason === 'tool_calls') mappedFinishReason = 'STOP';
+              else if (finishReason === 'tool_calls')
+                mappedFinishReason = 'STOP';
 
               if (parts.length > 0 || mappedFinishReason || result.usage) {
                 yield {
@@ -291,7 +359,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 } as GenerateContentResponse;
               }
             } catch (e) {
-              debugLogger.error(`Error parsing OpenAI stream chunk: ${e}`);
+              // Ignore JSON parse errors for incomplete chunks
             }
           }
         }
