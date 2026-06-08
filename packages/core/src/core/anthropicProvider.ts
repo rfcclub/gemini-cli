@@ -211,6 +211,8 @@ export class AnthropicProvider implements LlmProvider {
     async function* streamGenerator(): AsyncGenerator<GenerateContentResponse> {
       let buffer = '';
       let isDone = false;
+      const toolCallMap = new Map<number, { name: string; arguments: string }>();
+
       try {
         while (!isDone) {
           const { done, value } = await reader.read();
@@ -238,9 +240,36 @@ export class AnthropicProvider implements LlmProvider {
                 let usageMetadata: any;
 
                 switch (result.type) {
+                  case 'content_block_start':
+                    if (result.content_block?.type === 'tool_use') {
+                      toolCallMap.set(result.index, {
+                        name: result.content_block.name,
+                        arguments: '',
+                      });
+                    }
+                    break;
                   case 'content_block_delta':
                     if (result.delta?.type === 'text_delta') {
                       parts.push({ text: result.delta.text });
+                    } else if (result.delta?.type === 'input_json_delta') {
+                      const activeCall = toolCallMap.get(result.index);
+                      if (activeCall) {
+                        activeCall.arguments += result.delta.partial_json;
+                      }
+                    }
+                    break;
+                  case 'content_block_stop':
+                    {
+                      const activeCall = toolCallMap.get(result.index);
+                      if (activeCall) {
+                        parts.push({
+                          functionCall: {
+                            name: activeCall.name,
+                            args: activeCall.arguments ? JSON.parse(activeCall.arguments) : {},
+                          } as FunctionCall,
+                        });
+                        toolCallMap.delete(result.index);
+                      }
                     }
                     break;
                   case 'message_delta':

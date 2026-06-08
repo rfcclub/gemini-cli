@@ -274,6 +274,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     async function* streamGenerator(): AsyncGenerator<GenerateContentResponse> {
       let buffer = '';
       let isDone = false;
+      const toolCallMap = new Map<number, { name: string; arguments: string }>();
+
       try {
         while (!isDone) {
           const { done, value } = await reader.read();
@@ -316,15 +318,17 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
               if (delta?.tool_calls) {
                 for (const call of delta.tool_calls) {
-                  if (call.type === 'function') {
-                    parts.push({
-                      functionCall: {
-                        name: call.function.name,
-                        args: call.function.arguments
-                          ? JSON.parse(call.function.arguments)
-                          : {},
-                      } as FunctionCall,
-                    });
+                  const index = call.index ?? 0;
+                  let activeCall = toolCallMap.get(index);
+                  if (!activeCall) {
+                    activeCall = { name: call.function?.name || '', arguments: '' };
+                    toolCallMap.set(index, activeCall);
+                  }
+                  if (call.function?.name) {
+                    activeCall.name = call.function.name;
+                  }
+                  if (call.function?.arguments) {
+                    activeCall.arguments += call.function.arguments;
                   }
                 }
               }
@@ -337,6 +341,20 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 mappedFinishReason = 'SAFETY';
               else if (finishReason === 'tool_calls')
                 mappedFinishReason = 'STOP';
+
+              if (finishReason && toolCallMap.size > 0) {
+                for (const activeCall of toolCallMap.values()) {
+                  parts.push({
+                    functionCall: {
+                      name: activeCall.name,
+                      args: activeCall.arguments
+                        ? JSON.parse(activeCall.arguments)
+                        : {},
+                    } as FunctionCall,
+                  });
+                }
+                toolCallMap.clear();
+              }
 
               if (parts.length > 0 || mappedFinishReason || result.usage) {
                 yield {
@@ -362,6 +380,31 @@ export class OpenAiCompatibleProvider implements LlmProvider {
               // Ignore JSON parse errors for incomplete chunks
             }
           }
+        }
+
+        if (toolCallMap.size > 0) {
+          const parts: Part[] = [];
+          for (const activeCall of toolCallMap.values()) {
+            parts.push({
+              functionCall: {
+                name: activeCall.name,
+                args: activeCall.arguments
+                  ? JSON.parse(activeCall.arguments)
+                  : {},
+              } as FunctionCall,
+            });
+          }
+          yield {
+            candidates: [
+              {
+                content: {
+                  role: 'model',
+                  parts: parts.length > 0 ? parts : undefined,
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          } as GenerateContentResponse;
         }
       } finally {
         reader.releaseLock();
