@@ -358,7 +358,8 @@ export async function createContentGenerator(
           ? new HttpProxyAgent(proxyUrl)
           : new HttpsProxyAgent(proxyUrl)
         : undefined;
-
+      const useVertex =
+        config.vertexai ?? config.authType === AuthType.USE_VERTEX_AI;
       const googleGenAI = new GoogleGenAI({
         apiKey:
           config.authType === AuthType.GATEWAY
@@ -369,10 +370,17 @@ export async function createContentGenerator(
         vertexai: config.vertexai ?? config.authType === AuthType.USE_VERTEX_AI,
         httpOptions,
         ...(apiVersionEnv && { apiVersion: apiVersionEnv }),
-        ...(proxyAgent && {
+        // Merge proxy and GDCH endpoint into googleAuthOptions if either exists
+        ...((proxyAgent || (useVertex && baseUrl)) && {
           googleAuthOptions: {
             clientOptions: {
-              transporterOptions: { agent: proxyAgent },
+              ...(proxyAgent && {
+                transporterOptions: { agent: proxyAgent },
+              }),
+              ...(useVertex &&
+                baseUrl && {
+                  apiEndpoint: baseUrl,
+                }),
             },
           },
         }),
