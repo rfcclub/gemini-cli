@@ -657,6 +657,13 @@ export class LoggingContentGenerator implements ContentGenerator {
       return;
     }
 
+    // Skip context caching for custom providers (non-Google models)
+    if (req.model?.includes(':') || req.model?.includes('/')) {
+      if (ProviderFactory.getProvider(req.model)) {
+        return;
+      }
+    }
+
     const forceCaching = process.env['VESTA_FORCE_CACHING'] === 'true';
     const systemPrompt = req.config?.systemInstruction;
 

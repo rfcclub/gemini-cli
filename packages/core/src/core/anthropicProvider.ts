@@ -99,16 +99,19 @@ export class AnthropicProvider implements LlmProvider {
     const result = await response.json();
     
     const parts: Part[] = [];
+    const functionCalls: FunctionCall[] = [];
     for (const block of result.content) {
       if (block.type === 'text') {
         parts.push({ text: block.text });
       } else if (block.type === 'tool_use') {
+        const fnCall = {
+          name: block.name,
+          args: block.input,
+        } as FunctionCall;
         parts.push({
-          functionCall: {
-            name: block.name,
-            args: block.input,
-          } as FunctionCall,
+          functionCall: fnCall,
         });
+        functionCalls.push(fnCall);
       }
     }
 
@@ -122,6 +125,7 @@ export class AnthropicProvider implements LlmProvider {
           finishReason: result.stop_reason === 'tool_use' ? 'STOP' : 'STOP',
         },
       ],
+      functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
       usageMetadata: {
         promptTokenCount: result.usage?.input_tokens,
         candidatesTokenCount: result.usage?.output_tokens,
@@ -299,6 +303,10 @@ export class AnthropicProvider implements LlmProvider {
                     break;
                 }
 
+                const chunkFunctionCalls = parts
+                  .filter((p) => p.functionCall)
+                  .map((p) => p.functionCall!);
+
                 if (parts.length > 0 || finishReason || usageMetadata) {
                   yield {
                     candidates: [
@@ -310,6 +318,7 @@ export class AnthropicProvider implements LlmProvider {
                         finishReason,
                       },
                     ],
+                    functionCalls: chunkFunctionCalls.length > 0 ? chunkFunctionCalls : undefined,
                     usageMetadata,
                   } as GenerateContentResponse;
                 }

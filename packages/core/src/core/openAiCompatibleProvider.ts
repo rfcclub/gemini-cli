@@ -42,12 +42,76 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       });
     }
 
-    messages.push(
-      ...contents.map((content) => ({
-        role: content.role === 'user' ? 'user' : 'assistant',
-        content: content.parts?.map((p: Part) => p.text).join('') ?? '',
-      })),
-    );
+    const toolCallIdsByName = new Map<string, string[]>();
+
+    for (const content of contents) {
+      const role = content.role === 'user' ? 'user' : 'assistant';
+      const parts = content.parts || [];
+
+      // Check if this content is a tool response (contains functionResponse parts)
+      const hasFunctionResponse = parts.some((p) => p.functionResponse);
+
+      if (hasFunctionResponse) {
+        for (const part of parts) {
+          if (part.functionResponse) {
+            const fnName = part.functionResponse.name || '';
+            const responseData = part.functionResponse.response;
+
+            const ids = toolCallIdsByName.get(fnName) || [];
+            const toolCallId = ids.shift() || `call_${fnName}_unknown`;
+            toolCallIdsByName.set(fnName, ids);
+
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolCallId,
+              name: fnName,
+              content: typeof responseData === 'string' ? responseData : JSON.stringify(responseData),
+            });
+          } else if (part.text) {
+            messages.push({
+              role: 'user',
+              content: part.text,
+            });
+          }
+        }
+      } else {
+        const textParts = parts.filter((p) => p.text).map((p) => p.text).join('');
+        const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall!);
+
+        if (role === 'assistant') {
+          const assistantMessage: any = {
+            role: 'assistant',
+            content: textParts || null,
+          };
+
+          if (functionCalls.length > 0) {
+            assistantMessage.tool_calls = functionCalls.map((call) => {
+              const callName = call.name || '';
+              const toolCallId = `call_${callName}_${Math.random().toString(36).substring(2, 9)}`;
+
+              const ids = toolCallIdsByName.get(callName) || [];
+              ids.push(toolCallId);
+              toolCallIdsByName.set(callName, ids);
+
+              return {
+                id: toolCallId,
+                type: 'function',
+                function: {
+                  name: callName,
+                  arguments: JSON.stringify(call.args),
+                },
+              };
+            });
+          }
+          messages.push(assistantMessage);
+        } else {
+          messages.push({
+            role: 'user',
+            content: textParts,
+          });
+        }
+      }
+    }
 
     return messages;
   }
@@ -184,7 +248,10 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
     const parts: Part[] = [];
     if (message.content) {
-      parts.push({ text: message.content });
+      const text = message.content.replace(/<\/?think>/g, '');
+      if (text) {
+        parts.push({ text });
+      }
     }
 
     if (message.reasoning_content) {
@@ -194,15 +261,18 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       } as any);
     }
 
+    const functionCalls: FunctionCall[] = [];
     if (message.tool_calls) {
       for (const call of message.tool_calls) {
         if (call.type === 'function') {
+          const fnCall = {
+            name: call.function.name,
+            args: JSON.parse(call.function.arguments),
+          } as FunctionCall;
           parts.push({
-            functionCall: {
-              name: call.function.name,
-              args: JSON.parse(call.function.arguments),
-            } as FunctionCall,
+            functionCall: fnCall,
           });
+          functionCalls.push(fnCall);
         }
       }
     }
@@ -217,6 +287,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           finishReason: choice.finish_reason === 'stop' ? 'STOP' : 'STOP',
         },
       ],
+      functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
       usageMetadata: {
         promptTokenCount: result.usage?.prompt_tokens,
         candidatesTokenCount: result.usage?.completion_tokens,
@@ -305,7 +376,10 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
               const parts: Part[] = [];
               if (delta?.content) {
-                parts.push({ text: delta.content });
+                const text = delta.content.replace(/<\/?think>/g, '');
+                if (text) {
+                  parts.push({ text });
+                }
               }
 
               if (delta?.reasoning_content) {
@@ -342,16 +416,19 @@ export class OpenAiCompatibleProvider implements LlmProvider {
               else if (finishReason === 'tool_calls')
                 mappedFinishReason = 'STOP';
 
+              const chunkFunctionCalls: FunctionCall[] = [];
               if (finishReason && toolCallMap.size > 0) {
                 for (const activeCall of toolCallMap.values()) {
+                  const fnCall = {
+                    name: activeCall.name,
+                    args: activeCall.arguments
+                      ? JSON.parse(activeCall.arguments)
+                      : {},
+                  } as FunctionCall;
                   parts.push({
-                    functionCall: {
-                      name: activeCall.name,
-                      args: activeCall.arguments
-                        ? JSON.parse(activeCall.arguments)
-                        : {},
-                    } as FunctionCall,
+                    functionCall: fnCall,
                   });
+                  chunkFunctionCalls.push(fnCall);
                 }
                 toolCallMap.clear();
               }
@@ -367,6 +444,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                       finishReason: mappedFinishReason,
                     },
                   ],
+                  functionCalls: chunkFunctionCalls.length > 0 ? chunkFunctionCalls : undefined,
                   usageMetadata: result.usage
                     ? {
                         promptTokenCount: result.usage.prompt_tokens,
@@ -384,15 +462,18 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
         if (toolCallMap.size > 0) {
           const parts: Part[] = [];
+          const chunkFunctionCalls: FunctionCall[] = [];
           for (const activeCall of toolCallMap.values()) {
+            const fnCall = {
+              name: activeCall.name,
+              args: activeCall.arguments
+                ? JSON.parse(activeCall.arguments)
+                : {},
+            } as FunctionCall;
             parts.push({
-              functionCall: {
-                name: activeCall.name,
-                args: activeCall.arguments
-                  ? JSON.parse(activeCall.arguments)
-                  : {},
-              } as FunctionCall,
+              functionCall: fnCall,
             });
+            chunkFunctionCalls.push(fnCall);
           }
           yield {
             candidates: [
@@ -404,6 +485,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 finishReason: 'STOP',
               },
             ],
+            functionCalls: chunkFunctionCalls.length > 0 ? chunkFunctionCalls : undefined,
           } as GenerateContentResponse;
         }
       } finally {
