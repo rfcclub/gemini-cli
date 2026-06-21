@@ -28,7 +28,7 @@ export function expandEnvVars(
   // only handles POSIX ($VAR, ${VAR}).
   const processedStr = str
     .replace(/\${env:(\w+)}/g, '${$1}')
-    .replace(/%(\w+)%/g, (_, name) => (process.platform === 'win32' ? env[name] ?? '' : '%$1%'));
+    .replace(/%(\w+)%/g, (_, name) => (process.platform === 'win32' ? env[name] ?? '' : `%${name}%`));
 
   // 2. Use dotenv-expand for POSIX/Bash syntax ($VAR, ${VAR}).
   // dotenv-expand is designed to process an object of key-value pairs (like a .env file).
