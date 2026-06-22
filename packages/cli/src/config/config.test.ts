@@ -1880,7 +1880,7 @@ describe('loadCliConfig model selection', () => {
     expect(config.getModel()).toBe('gemini-2.5-pro');
   });
 
-  it('uses the default gemini model if nothing is set', async () => {
+  it('uses the Vesta hard-switch default `minimax:MiniMax-M3` if nothing is set', async () => {
     process.argv = ['node', 'script.js']; // No model set.
     const argv = await parseArguments(createTestMergedSettings());
     const config = await loadCliConfig(
@@ -1891,7 +1891,7 @@ describe('loadCliConfig model selection', () => {
       argv,
     );
 
-    expect(config.getModel()).toBe('auto');
+    expect(config.getModel()).toBe('minimax:MiniMax-M3');
   });
 
   it('always prefers model from argv', async () => {

@@ -31,7 +31,6 @@ import {
   ASK_USER_TOOL_NAME,
   getVersion,
   coreEvents,
-  GEMINI_MODEL_ALIAS_AUTO,
   getAdminErrorMessage,
   isHeadlessMode,
   Config,
@@ -841,7 +840,15 @@ export async function loadCliConfig(
     interactive,
   );
 
-  const defaultModel = GEMINI_MODEL_ALIAS_AUTO;
+  // Vesta hard-switches the default model away from Gemini to MiniMax-compatible
+  // when no other source provides a model. Precedence (highest to lowest):
+  //   1. argv --model
+  //   2. process.env.GEMINI_MODEL
+  //   3. settings.model.name
+  //   4. hard default `minimax:MiniMax-M3` (resolves via ProviderFactory prefix
+  //      dispatch to the user-registered `minimax` provider in
+  //      ~/.gemini/providers.yaml).
+  const defaultModel = 'minimax:MiniMax-M3';
   const rawModel =
     argv.model || process.env['GEMINI_MODEL'] || settings.model?.name;
 
@@ -852,10 +859,7 @@ export async function loadCliConfig(
       ? undefined
       : String(rawModel ?? '').trim() || '';
 
-  const resolvedModel =
-    specifiedModel === GEMINI_MODEL_ALIAS_AUTO
-      ? defaultModel
-      : specifiedModel || defaultModel;
+  const resolvedModel = specifiedModel || defaultModel;
   const sandboxConfig = await loadSandboxConfig(settings, argv);
   if (sandboxConfig) {
     const existingPaths = sandboxConfig.allowedPaths || [];
