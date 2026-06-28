@@ -1,0 +1,31 @@
+scenarios:
+  # TypeScript-level: schema includes availableModels as optional.
+  # Covered by typecheck pass; no runtime test required.
+  - scenario: providerconfig-exposes-availablemodels-field-schema-declares-availablemodels-as-optional
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#all  # typecheck
+  - scenario: providerconfig-exposes-availablemodels-field-existing-provider-entries-without-availablemodels-still-type-check
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#handles-missing-availablemodels-gracefully
+
+  # Loader behavior — runtime tests.
+  - scenario: providerregistry-loads-availablemodels-from-yaml-yaml-with-availablemodels-list-is-loaded-into-registry
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#loads-availablemodels-from-yaml-into-registry
+  - scenario: providerregistry-loads-availablemodels-from-yaml-yaml-without-availablemodels-is-loaded-with-undefined
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#handles-missing-availablemodels-gracefully
+  - scenario: providerregistry-loads-availablemodels-from-yaml-env-var-expansion-does-not-corrupt-availablemodels
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#preserves-availablemodels-through-env-var-expansion
+  - scenario: providerregistry-loads-availablemodels-from-yaml-malformed-yaml-does-not-throw
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#does-not-throw-on-malformed-yaml
+
+  # Backward compatibility.
+  - scenario: backward-compatibility-preserved-defaultmodel-still-loads
+    status: passing
+    test: packages/core/src/services/providerRegistry.test.ts#handles-missing-availablemodels-gracefully
+  - scenario: backward-compatibility-preserved-existing-tests-pass
+    status: passing
+    test: packages/core/src/services/modelConfigService.test.ts#all

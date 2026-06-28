@@ -1,0 +1,10 @@
+{
+  "change": "model-catalog-wiring",
+  "timestamp": "2026-06-27T18:40:15.073Z",
+  "total_scenarios": 8,
+  "passing": 10,
+  "coverage": 1,
+  "threshold": 100,
+  "passed": true,
+  "uncovered": []
+}

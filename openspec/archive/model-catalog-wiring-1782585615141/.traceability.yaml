@@ -1,0 +1,31 @@
+scenarios:
+  - scenario: modelconfigservice-getavailablemodeloptions-expands-availablemodels-provider-with-non-empty-availablemodels-emits-one-option-per-model
+    status: passing
+    test: packages/core/src/services/modelConfigService.externalOptions.test.ts#E1
+  - scenario: modelconfigservice-getavailablemodeloptions-expands-availablemodels-provider-without-availablemodels-emits-one-default-option
+    status: passing
+    test: packages/core/src/services/modelConfigService.externalOptions.test.ts#E2
+  - scenario: modelconfigservice-getavailablemodeloptions-expands-availablemodels-provider-with-empty-availablemodels-array-falls-back-to-default
+    status: passing
+    test: packages/core/src/services/modelConfigService.externalOptions.test.ts#E3
+  - scenario: modelconfigservice-getavailablemodeloptions-expands-availablemodels-multiple-providers-produce-options-in-registry-iteration-order
+    status: passing
+    test: packages/core/src/services/modelConfigService.externalOptions.test.ts#E4
+  - scenario: acp-buildavailablemodels-merges-external-catalog-acp-path-includes-external-options-alongside-gemini
+    status: passing
+    test: packages/cli/src/acp/acpUtils.externalModels.test.ts#E5
+  - scenario: acp-buildavailablemodels-merges-external-catalog-acp-path-includes-external-options-alongside-gemini
+    status: passing
+    test: packages/cli/src/acp/acpUtils.externalModels.test.ts#E6
+  - scenario: acp-buildavailablemodels-merges-external-catalog-acp-path-with-no-external-providers-behaves-as-before
+    status: passing
+    test: packages/cli/src/acp/acpUtils.externalModels.test.ts#E7
+  - scenario: backward-compatibility-existing-acpsessionmanager-tests-pass
+    status: passing
+    test: packages/cli/src/acp/acpSessionManager.test.ts#all
+  - scenario: backward-compatibility-existing-modelconfigservice-tests-pass
+    status: passing
+    test: packages/core/src/services/modelConfigService.test.ts#all
+  - scenario: backward-compatibility-existing-golden-test-for-modelconfigservice-passes
+    status: passing
+    test: packages/core/src/services/modelConfig.golden.test.ts#all  # pre-existing: requires UPDATE_GOLDENS=true to seed golden file

@@ -1,0 +1,10 @@
+{
+  "change": "provider-catalog",
+  "timestamp": "2026-06-27T17:51:07.768Z",
+  "total_scenarios": 8,
+  "passing": 8,
+  "coverage": 1,
+  "threshold": 100,
+  "passed": true,
+  "uncovered": []
+}
