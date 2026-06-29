@@ -1,0 +1,72 @@
+scenarios:
+  # Default Model Resolution Priority Chain
+  - scenario: default-model-resolution-priority-chain-vesta-default-model-env-overrides-everything
+    status: passing
+    test: packages/core/src/services/defaultModelResolver.test.ts > resolveDefaultModel > env VESTA_DEFAULT_MODEL overrides everything
+  - scenario: default-model-resolution-priority-chain-config-yaml-defaultmodel-overrides-catalog-order
+    status: passing
+    test: packages/core/src/services/defaultModelResolver.test.ts > resolveDefaultModel > config.yaml.defaultModel overrides catalog order
+  - scenario: default-model-resolution-priority-chain-catalog-first-provider-used-when-no-config
+    status: passing
+    test: packages/core/src/services/defaultModelResolver.test.ts > resolveDefaultModel > catalog first provider used when no config
+  - scenario: default-model-resolution-priority-chain-fallback-to-first-provider-with-warning-when-no-sources
+    status: passing
+    test: packages/core/src/services/defaultModelResolver.test.ts > resolveDefaultModel > fallback to first provider with warning when no sources
+  - scenario: default-model-resolution-priority-chain-fail-with-typed-error-when-providers-yaml-does-not-exist
+    status: passing
+    test: packages/core/src/services/defaultModelResolver.test.ts > resolveDefaultModel > throws NoProvidersConfiguredError when no providers
+  - scenario: default-model-resolution-priority-chain-fail-with-typed-error-when-providers-yaml-has-zero-providers
+    status: passing
+    test: packages/core/src/services/defaultModelResolver.test.ts > resolveDefaultModel > throws NoProvidersConfiguredError when no providers
+
+  # CLI Flag Override
+  - scenario: cli-flag-override-provider-flag-overrides-env
+    status: passing
+    test: packages/core/src/services/bootModelSelector.test.ts > selectBootModel > uses --provider flag when given (valid)
+  - scenario: cli-flag-override-provider-with-unknown-provider-fails-clearly
+    status: passing
+    test: packages/core/src/services/bootModelSelector.test.ts > selectBootModel > throws UnknownProviderError when --provider not in registry
+
+  # Opt-in Gemini Registration
+  - scenario: opt-in-gemini-registration-gemini-api-key-unset-gemini-not-registered
+    status: passing
+    test: packages/core/src/services/providerRegistry.optInGemini.test.ts > ProviderRegistry.opt-in Gemini > does NOT register gemini when GEMINI_API_KEY is unset
+  - scenario: opt-in-gemini-registration-gemini-api-key-empty-string-gemini-not-registered
+    status: passing
+    test: packages/core/src/services/providerRegistry.optInGemini.test.ts > ProviderRegistry.opt-in Gemini > does NOT register gemini when GEMINI_API_KEY is empty string
+  - scenario: opt-in-gemini-registration-gemini-api-key-present-gemini-registered-as-opt-in
+    status: passing
+    test: packages/core/src/services/providerRegistry.optInGemini.test.ts > ProviderRegistry.opt-in Gemini > registers gemini when GEMINI_API_KEY is set
+  - scenario: opt-in-gemini-registration-backward-compat-gemini-remains-default-when-key-present
+    status: passing
+    test: packages/core/src/services/providerRegistry.optInGemini.test.ts > ProviderRegistry.opt-in Gemini > catalog providers load even when GEMINI_API_KEY is absent
+
+  # VestaConfig Loader
+  - scenario: vestaconfig-loader-valid-config-yaml-loads-successfully
+    status: passing
+    test: packages/core/src/config/vestaConfig.test.ts > loadVestaConfig > parses valid config with all fields
+  - scenario: vestaconfig-loader-missing-config-returns-null
+    status: passing
+    test: packages/core/src/config/vestaConfig.test.ts > loadVestaConfig > returns null when config.yaml does not exist
+  - scenario: vestaconfig-loader-invalid-config-yaml-throws-typed-error
+    status: passing
+    test: packages/core/src/config/vestaConfig.test.ts > loadVestaConfig > throws VestaConfigParseError on malformed YAML
+  - scenario: vestaconfig-loader-config-yaml-with-api-key-warns-on-loose-permissions
+    status: passing
+    test: packages/core/src/config/vestaConfig.test.ts > loadVestaConfig > warns when permissions are loose and geminiApiKey is set
+
+  # Boot Logging (covered by selectBootModel which emits the log)
+  - scenario: boot-logging-successful-boot-logs-source-clearly
+    status: passing
+    test: packages/core/src/services/bootModelSelector.test.ts > selectBootModel > falls back to resolveDefaultModel when no flag
+  - scenario: boot-logging-failed-boot-logs-actionable-recovery-steps
+    status: passing
+    test: packages/core/src/services/bootModelSelector.test.ts > selectBootModel > propagates NoProvidersConfiguredError from resolver
+
+  # Integration Test
+  - scenario: integration-test-boot-without-gemini-api-key-unset-gemini-api-key-and-providers-yaml-only
+    status: passing
+    test: integration-tests/sovereign-boot.test.ts > sovereign-boot E2E > boots without GEMINI_API_KEY when providers.yaml exists
+  - scenario: integration-test-boot-without-gemini-api-key-full-boot-sequence-without-gemini-api-key
+    status: passing
+    test: integration-tests/sovereign-boot.test.ts > sovereign-boot E2E > CLI --version exits 0 without GEMINI_API_KEY

@@ -7,12 +7,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { Box, Text, useIsScreenReaderEnabled } from 'ink';
-import {
-  isVestaEnv,
-  vestaFlameFrames,
-  FIRE_PALETTE,
-  shortAsciiLogo,
-} from './AsciiArt.js';
+import { vestaFlameFrames, FIRE_PALETTE, shortAsciiLogo } from './AsciiArt.js';
 import { useFlameAnimation } from '../hooks/useFlameAnimation.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 import { useKeypress } from '../hooks/useKeypress.js';
@@ -31,11 +26,11 @@ interface VestaSplashProps {
 const TAGLINE = 'The Athanor is hot. Vesta is ready.';
 
 /**
- * Boot splash for Vesta mode. Renders the short Vesta logo + tagline with
+ * Boot splash for Vesta. Renders the short Vesta logo + tagline with
  * a 4-frame flame animation cycling next to it. Auto-dismisses after
  * `durationMs` (default 1500) or on any keypress.
  *
- * - Returns `null` outside Vesta mode (zero pixel in Gemini).
+ * - Returns `null` when `visible` is false.
  * - In screen-reader mode, renders a static flame + tagline so a11y users
  *   still get the equivalent information without animation.
  */
@@ -46,7 +41,7 @@ export const VestaSplash: React.FC<VestaSplashProps> = ({
 }) => {
   // Hooks first (Rules of Hooks). useSettings, useFlameAnimation, and
   // useIsScreenReaderEnabled must be called every render regardless of
-  // `visible` or `isVestaEnv()`.
+  // `visible`.
   const settings = useSettings();
   const animationsEnabled =
     settings.merged.ui?.animations === true ||
@@ -81,7 +76,7 @@ export const VestaSplash: React.FC<VestaSplashProps> = ({
     { isActive: visible },
   );
 
-  if (!isVestaEnv() || !visible) {
+  if (!visible) {
     return null;
   }
 

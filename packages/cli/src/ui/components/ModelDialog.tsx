@@ -27,6 +27,8 @@ import {
   PREVIEW_GEMINI_3_1_CUSTOM_TOOLS_MODEL,
   isProModel,
   getAutoModelDescription,
+  buildExternalProviderOptions,
+  ProviderRegistry,
 } from '@google/gemini-cli-core';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { theme } from '../semantic-colors.js';
@@ -73,10 +75,7 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
     useGemini31 && selectedAuthType === AuthType.USE_GEMINI;
 
   const manualModelSelected = useMemo(() => {
-    if (
-      config?.getExperimentalDynamicModelConfiguration?.() === true &&
-      config.getModelConfigService
-    ) {
+    if (config?.getExperimentalDynamicModelConfiguration?.() === true) {
       const def = config
         .getModelConfigService()
         .getModelDefinition(preferredModel);
@@ -122,35 +121,23 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
   );
   const mainOptions = useMemo(() => {
     // --- DYNAMIC PATH ---
-    if (
-      config?.getExperimentalDynamicModelConfiguration?.() === true &&
-      config.getModelConfigService
-    ) {
-      const allOptions = config
-        .getModelConfigService()
-        .getAvailableModelOptions({
-          useGemini3_1: useGemini31,
-          useGemini3_5Flash,
-          useCustomTools: useCustomToolModel,
-          hasAccessToPreview: shouldShowPreviewModels,
-          hasAccessToProModel,
-        });
-
-      const list = allOptions
-        .filter((o) => o.tier === 'auto')
-        .map((o) => ({
-          value: o.modelId,
-          title: o.name,
-          description: o.description,
-          key: o.modelId,
-        }));
+    if (config?.getExperimentalDynamicModelConfiguration?.() === true) {
+      // Vesta override: there is no "Auto" in the dynamic path. We intentionally
+      // do not surface GEMINI_MODEL_ALIAS_AUTO here so users land directly in
+      // the manual picker where their external providers live at the top.
+      const list: Array<{
+        value: string;
+        title: string;
+        description: string;
+        key: string;
+      }> = [];
 
       list.push({
         value: 'Manual',
         title: manualModelSelected
           ? `Manual (${getDisplayString(manualModelSelected, config ?? undefined)})`
           : 'Manual',
-        description: 'Manually select a model',
+        description: 'Pick a model — external providers listed first',
         key: 'Manual',
       });
       return list;
@@ -185,16 +172,11 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
     manualModelSelected,
     useGemini31,
     useGemini3_5Flash,
-    useCustomToolModel,
-    hasAccessToProModel,
   ]);
 
   const manualOptions = useMemo(() => {
     // --- DYNAMIC PATH ---
-    if (
-      config?.getExperimentalDynamicModelConfiguration?.() === true &&
-      config.getModelConfigService
-    ) {
+    if (config?.getExperimentalDynamicModelConfiguration?.() === true) {
       const allOptions = config
         .getModelConfigService()
         .getAvailableModelOptions({
@@ -205,19 +187,52 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
           hasAccessToProModel,
         });
 
-      return allOptions
-        .filter((o) => o.tier !== 'auto')
-        .map((o) => ({
-          value: o.modelId,
-          title: o.name,
-          key: o.modelId,
-        }));
+      const nonAuto = allOptions.filter((o) => o.tier !== 'auto');
+      // Vesta: external providers come pre-sorted first by
+      // modelConfigService. We re-affirm that ordering here so any future
+      // refactor in the service can't accidentally bury them again.
+      const external = nonAuto.filter((o) => o.tier === 'external');
+      const others = nonAuto.filter((o) => o.tier !== 'external');
+
+      const toItem = (o: {
+        modelId: string;
+        name: string;
+        description?: string;
+      }) => ({
+        value: o.modelId,
+        title: o.name,
+        description: o.description ?? '',
+        key: o.modelId,
+      });
+
+      return [...external.map(toItem), ...others.map(toItem)];
     }
 
     // --- LEGACY PATH ---
     const showGemmaModels = config?.getExperimentalGemma() ?? false;
 
-    const options = [
+    const options: Array<{
+      value: string;
+      title: string;
+      description?: string;
+      key: string;
+    }> = [];
+
+    // Vesta: external providers from ~/.gemini-vesta/providers.yaml go FIRST
+    // (matches dynamic-path ordering convention). User reported that legacy
+    // dialog only showed the default model because external catalog was
+    // never injected here. Now wired through shared buildExternalProviderOptions.
+    const externalOptions = buildExternalProviderOptions(
+      ProviderRegistry.getInstance().getAllProviders(),
+    ).map((o) => ({
+      value: o.modelId,
+      title: o.name,
+      description: o.description,
+      key: o.modelId,
+    }));
+    options.push(...externalOptions);
+
+    options.push(
       {
         value: DEFAULT_GEMINI_MODEL,
         title: getDisplayString(DEFAULT_GEMINI_MODEL),
@@ -233,7 +248,7 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
         title: getDisplayString(DEFAULT_GEMINI_FLASH_MODEL),
         key: DEFAULT_GEMINI_FLASH_MODEL,
       },
-    ];
+    );
 
     if (showGemmaModels) {
       options.push(
@@ -357,6 +372,13 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
           onSelect={handleSelect}
           initialIndex={initialIndex}
           showNumbers={true}
+          // Vesta: the catalog from ~/.gemini-vesta/providers.yaml exposes
+          // 55+ models across multiple vendors. Default maxItemsToShow=10
+          // with no scroll arrows silently hid the rest, making it look like
+          // models were missing. Enable scroll indicators and bump the
+          // visible window so the picker is obviously scrollable.
+          showScrollArrows={true}
+          maxItemsToShow={15}
         />
       </Box>
       <Box marginTop={1} flexDirection="column">

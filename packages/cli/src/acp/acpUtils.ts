@@ -23,6 +23,8 @@ import {
   AuthType,
   ToolConfirmationOutcome,
   getAutoModelDescription,
+  ProviderRegistry,
+  buildExternalProviderOptions,
 } from '@google/gemini-cli-core';
 import type * as acp from '@agentclientprotocol/sdk';
 import { z } from 'zod';
@@ -355,8 +357,17 @@ export function buildAvailableModels(
       description: o.description,
     }));
 
+  // Vesta: merge external provider catalog (from ~/.gemini-vesta/providers.yaml)
+  // into the legacy path so ACP clients see external models too.
+  // Uses the shared buildExternalProviderOptions from core to avoid
+  // duplicating the expansion logic.
+  const externalOptions = buildExternalProviderOptions(
+    ProviderRegistry.getInstance().getAllProviders(),
+  );
+
   return {
     availableModels: [
+      ...externalOptions,
       ...scaleOptions(mainOptions),
       ...scaleOptions(manualOptions),
     ],

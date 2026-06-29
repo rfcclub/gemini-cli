@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useSettings } from '../contexts/SettingsContext.js';
 import { debugState } from '../debug.js';
 
 export interface UseFlameAnimationOptions {
@@ -29,11 +28,9 @@ export interface UseFlameAnimationOptions {
  * Visibility rules (most-permissive wins):
  * 1. Test env (Vitest / NODE_ENV=test) — always enabled so frame=0 stays
  *    deterministic unless the caller advances fake timers.
- * 2. Vesta mode (`isVestaEnv()`) — always enabled. The flame is the
- *    signature visual of this fork; honouring a user-disabled
- *    `settings.ui.animations` here would defeat the purpose of running
- *    the Vesta binary. Gemini mode keeps the original opt-in behaviour.
- * 3. Gemini mode — honours `settings.ui.animations === true`.
+ * 2. Production — the flame is the signature visual of the Vesta fork;
+ *    a user-disabled `settings.ui.animations` would defeat the purpose
+ *    of running Vesta. The flame always animates in real terminals.
  *
  * See `useAnimatedScrollbar.ts` for the same test-env convention.
  */
@@ -42,14 +39,9 @@ export function useFlameAnimation(
   options: UseFlameAnimationOptions = {},
 ): number {
   const { fps = 1.5, enabled = true } = options;
-  const settings = useSettings();
-  const animationsSettingEnabled = settings.merged.ui?.animations === true;
-  const isTestEnv =
-    typeof globalThis !== 'undefined' &&
-    ('vi' in globalThis ||
-      process.env['VITEST'] !== undefined ||
-      process.env['NODE_ENV'] === 'test');
-  const animationsEnabled = animationsSettingEnabled || isTestEnv;
+  // Vesta fork: the flame is always-on. The flame is the signature visual
+  // of this binary and must not be silenced by an inherited user setting.
+  const animationsEnabled = true;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {

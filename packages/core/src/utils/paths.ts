@@ -10,20 +10,13 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const isVestaEnv = () => {
-  if (process.env['VITEST']) {
-    return false;
-  }
-  return (
-    process.env['VESTA_ATHANOR_DIR'] !== undefined ||
-    process.env['ATHANOR_DIR'] !== undefined ||
-    process.argv.some((arg) => arg.includes('gemini-vesta') || arg.includes('gemini_vesta'))
-  );
-};
-
+// Vesta is a hard fork that has left Google/Gemini support. All config,
+// state, and persistence targets the Vesta home directory unconditionally.
+// `GEMINI_CONFIG_DIR_NAME` is honored only as an explicit override (escape
+// hatch for sandbox/container layouts that need a different name); default
+// is `.gemini-vesta`.
 export const GEMINI_DIR =
-  process.env['GEMINI_CONFIG_DIR_NAME'] ||
-  (isVestaEnv() ? '.gemini-vesta' : '.gemini');
+  process.env['GEMINI_CONFIG_DIR_NAME'] || '.gemini-vesta';
 export const GOOGLE_ACCOUNTS_FILENAME = 'google_accounts.json';
 export const TRUSTED_FOLDERS_FILENAME = 'trustedFolders.json';
 

@@ -140,6 +140,10 @@ export * from './services/chatRecordingService.js';
 export * from './services/fileSystemService.js';
 export * from './services/sandboxedFileSystemService.js';
 export * from './services/modelConfigService.js';
+export { buildExternalProviderOptions } from './services/modelConfigService.js';
+export * from './services/providerRegistry.js';
+export * from './services/defaultModelResolver.js';
+export * from './services/bootModelSelector.js';
 export * from './sandbox/windows/WindowsSandboxManager.js';
 export * from './services/sessionSummaryUtils.js';
 export {

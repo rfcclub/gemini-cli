@@ -17,6 +17,27 @@ export interface ProviderConfig {
   baseUrl?: string;
   defaultModel?: string;
   customHeaders?: Record<string, string>;
+  /**
+   * Optional catalog of model IDs that the provider exposes.
+   * Sourced from providers.yaml; consumer code (e.g. /model command,
+   * ModelConfigService) may surface these to the user.
+   * Order matches the YAML declaration.
+   */
+  availableModels?: string[];
+  /**
+   * Optional curated subset of `availableModels` to surface in user-facing
+   * pickers (e.g. the `/model` command). When set AND non-empty, the
+   * provider registry exposes ONLY these models to ModelConfigService,
+   * regardless of how many entries `availableModels` has. This lets users
+   * curate a small, opinionated set per vendor without losing the full
+   * catalog for boot/routing logic.
+   *
+   * If unset or empty, the picker falls back to `availableModels` (or
+   * `defaultModel` if `availableModels` is also empty).
+   *
+   * Order matches the YAML declaration.
+   */
+  featuredModels?: string[];
 }
 
 export interface ProviderSettings {
@@ -60,7 +81,10 @@ export class ProviderRegistry {
       try {
         const content = fs.readFileSync(providersPath, 'utf8');
         const settings = parseYaml<ProviderSettings>(content);
-        debugLogger.log(`Loaded providers from ${providersPath}:`, Object.keys(settings?.providers || {}));
+        debugLogger.log(
+          `Loaded providers from ${providersPath}:`,
+          Object.keys(settings?.providers || {}),
+        );
         if (settings && settings.providers) {
           for (const [name, config] of Object.entries(settings.providers)) {
             const expandedConfig: ProviderConfig = {
@@ -79,6 +103,21 @@ export class ProviderRegistry {
       } catch (e) {
         debugLogger.error(`Failed to load providers.yaml: ${e}`);
       }
+    }
+
+    // Opt-in Gemini registration: only register when GEMINI_API_KEY is set
+    // to a non-empty string. This makes providers.yaml the sovereign source
+    // of truth and demotes Gemini from forced-default to optional provider.
+    const geminiKey = process.env['GEMINI_API_KEY'];
+    if (geminiKey && geminiKey.length > 0) {
+      this.registerProvider('gemini', {
+        type: 'google',
+        apiKey: geminiKey,
+        defaultModel: 'gemini-2.5-pro',
+      });
+      debugLogger.log(
+        'Registered provider: gemini (opt-in via GEMINI_API_KEY)',
+      );
     }
   }
 

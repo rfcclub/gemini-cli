@@ -77,6 +77,7 @@ import { runExitCleanup } from '../utils/cleanup.js';
 export interface CliArgs {
   query: string | undefined;
   model: string | undefined;
+  provider?: string | undefined;
   sandbox: boolean | string | undefined;
   debug: boolean | undefined;
   prompt: string | undefined;
@@ -291,6 +292,12 @@ export async function parseArguments(
           type: 'string',
           nargs: 1,
           description: `Model`,
+        })
+        .option('provider', {
+          type: 'string',
+          nargs: 1,
+          description:
+            'Override the default provider for this invocation. Must be a registered provider name (e.g., groq, deepseek, opencode, gemini).',
         })
         .option('prompt', {
           alias: 'p',

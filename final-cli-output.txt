@@ -1,0 +1,16 @@
+> cross-env NODE_ENV=development node scripts/start.js --model minimax/MiniMax-M3 say hi
+Checking build status...
+Build is up-to-date.
+Warning: True color (24-bit) support not detected. Using a terminal with true color enabled will result in a better visual experience.
+Error when talking to Gemini API Full report available at: /var/folders/xx/_15f_6pn4dgb5l2tr2wll6fh0000gn/T/gemini-client-error-Turn.run-sendMessageStream-2026-06-07T20-33-43-480Z.json Error: OpenAI API error (400): {"type":"error","error":{"type":"bad_request_error","message":"invalid params, function name or parameters is empty (2013)","http_code":"400"},"request_id":"067508a7ac2a515f990596117ae06fc2"}
+    at OpenAiCompatibleProvider.generateContentStream (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/openAiCompatibleProvider.js:149:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/loggingContentGenerator.js:316:30
+    at async file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/telemetry/trace.js:157:28
+    at async retryWithBackoff (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/utils/retry.js:189:28)
+    at async GeminiChat.makeApiCallAndProcessStream (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/geminiChat.js:612:32)
+    at async GeminiChat.streamWithRetries (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/geminiChat.js:390:40)
+    at async Turn.run (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/turn.js:75:30)
+    at async GeminiClient.processTurn (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/client.js:560:26)
+    at async GeminiClient.sendMessageStream (file:///Users/thoor/repo/gemini-vesta/packages/core/dist/src/core/client.js:668:20)
+An unexpected critical error occurred:[object Object]

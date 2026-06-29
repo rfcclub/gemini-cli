@@ -36,6 +36,10 @@ import {
   isHeadlessMode,
   Storage,
   getProjectHash,
+  selectBootModel,
+  NoProvidersConfiguredError,
+  UnknownProviderError,
+  ProviderRegistry,
   loadConversationRecord,
   type MessageRecord,
 } from '@google/gemini-cli-core';
@@ -422,6 +426,30 @@ export async function main() {
   });
 
   const argv = await argvPromise;
+
+  // Sovereign boot: load provider registry FIRST so --provider validation
+  // has actual providers to check against. Without this, selectBootModel
+  // sees an empty registry and rejects every flag override.
+  await ProviderRegistry.getInstance().loadFromGlobalConfig();
+
+  // Sovereign boot: resolve default model + validate --provider flag.
+  // Runs early so misconfiguration fails before expensive init (settings,
+  // storage, oauth, etc.). Throws are caught here and translated to exit codes.
+  try {
+    selectBootModel(argv.provider);
+  } catch (err) {
+    if (err instanceof NoProvidersConfiguredError) {
+      writeToStderr(err.message + '\n');
+      await runExitCleanup();
+      process.exit(78); // EX_CONFIG from sysexits.h
+    }
+    if (err instanceof UnknownProviderError) {
+      writeToStderr(err.message + '\n');
+      await runExitCleanup();
+      process.exit(ExitCodes.FATAL_CONFIG_ERROR);
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
 
   const { sessionId, resumedSessionData } = await resolveSessionId(
     argv.resume,

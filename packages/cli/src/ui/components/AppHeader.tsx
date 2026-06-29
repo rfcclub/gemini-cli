@@ -109,12 +109,11 @@ export const AppHeader = ({ version, showDetails = true }: AppHeaderProps) => {
 
   const renderMetadata = (isBelow = false) => (
     <Box marginLeft={isBelow ? 0 : 2} flexDirection="column">
-      {/* Line 1: Gemini CLI vVersion [Updating] */}
+      {/* Line 1: Lò lửa */}
       <Box>
         <Text bold color={theme.text.primary}>
-          Gemini CLI
+          Lò lửa
         </Text>
-        <Text color={theme.text.secondary}> v{version}</Text>
         {updateInfo?.isUpdating && (
           <Box marginLeft={2}>
             <Text color={theme.text.secondary}>
@@ -124,12 +123,17 @@ export const AppHeader = ({ version, showDetails = true }: AppHeaderProps) => {
         )}
       </Box>
 
+      {/* Line 2: Gemini Vesta vVersion */}
+      <Box>
+        <Text color={theme.text.secondary}>Gemini Vesta v{version}</Text>
+      </Box>
+
       {showDetails && (
         <>
-          {/* Line 2: Blank */}
+          {/* Line 3: Blank */}
           <Box height={1} />
 
-          {/* Lines 3 & 4: User Identity info (Email /auth and Plan /upgrade) */}
+          {/* Lines 4 & 5: User Identity info (Email /auth and Plan /upgrade) */}
           {settings.merged.ui.showUserIdentity !== false && (
             <UserIdentity config={config} />
           )}

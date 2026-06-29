@@ -1,0 +1,50 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+const apiKey = process.env.MINIMAX_PLAN_KEY;
+if (!apiKey) {
+  console.error('Error: MINIMAX_PLAN_KEY is not set.');
+  process.exit(1);
+}
+
+async function run() {
+  const url = 'https://api.minimax.io/v1/chat/completions';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'MiniMax-M3',
+      messages: [{ role: 'user', content: 'Say hello in Vietnamese' }],
+      stream: true,
+      reasoning_split: true,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error(`HTTP error! status: ${response.status}`);
+    const text = await response.text();
+    console.error(text);
+    return;
+  }
+
+  // response.body is a ReadableStream in global fetch
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    console.log('--- CHUNK START ---');
+    console.log(text);
+    console.log('--- CHUNK END ---');
+  }
+
+  console.log('Stream ended.');
+}
+
+run().catch(console.error);

@@ -361,6 +361,105 @@ describe('<ModelDialog />', () => {
     unmount();
   });
 
+  // ---------------------------------------------------------------------------
+  // Vesta: dynamic model configuration path
+  // When experimental.dynamicModelConfiguration is enabled, the dialog should:
+  //   1. Drop GEMINI_MODEL_ALIAS_AUTO from the main view.
+  //   2. Always show a "Manual" entry as the only main-view option.
+  //   3. Inside the manual view, list external providers (tier='external')
+  //      FIRST, with their friendly names and provider-type descriptions.
+  // ---------------------------------------------------------------------------
+  describe('Vesta: dynamic model configuration path', () => {
+    const EXTERNAL_PROVIDER_OPTION = {
+      modelId: 'minimax/MiniMax-M3',
+      name: 'minimax · MiniMax-M3',
+      description:
+        'minimax provider (openai-compatible) · https://api.minimax.io/v1',
+      tier: 'external',
+    };
+    const GEMINI_DEFINITION_OPTION = {
+      modelId: DEFAULT_GEMINI_MODEL,
+      name: 'Gemini 2.5 Pro',
+      description: '',
+      tier: 'pro',
+    };
+
+    const buildDynamicConfig = (): Config => {
+      const cfg = mockConfig as Config;
+      return Object.assign(Object.create(Object.getPrototypeOf(cfg)), cfg, {
+        getExperimentalDynamicModelConfiguration: () => true,
+        getModelConfigService: () => ({
+          getAvailableModelOptions: () => [
+            EXTERNAL_PROVIDER_OPTION,
+            { ...GEMINI_DEFINITION_OPTION },
+          ],
+          getModelDefinition: (modelId: string) =>
+            modelId === DEFAULT_GEMINI_MODEL
+              ? { tier: 'pro', isVisible: true }
+              : undefined,
+        }),
+      }) as unknown as Config;
+    };
+
+    it('does not surface Auto in the main view when dynamic configuration is enabled', async () => {
+      const { lastFrame, unmount } =
+        await renderComponent(buildDynamicConfig());
+
+      const output = lastFrame();
+      expect(output).not.toContain('Auto');
+      // Manual entry is still present.
+      expect(output).toContain('Manual');
+      unmount();
+    });
+
+    it('lists external providers first in the manual view with their descriptions', async () => {
+      const { lastFrame, stdin, waitUntilReady, unmount } =
+        await renderComponent(buildDynamicConfig());
+
+      // Enter the manual view (only one option in main view → index 0).
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      await waitFor(() => {
+        const output = lastFrame();
+        // External provider must appear before the Gemini definition.
+        const extIdx = output.indexOf('minimax · MiniMax-M3');
+        const geminiIdx = output.indexOf('Gemini 2.5 Pro');
+        expect(extIdx).toBeGreaterThanOrEqual(0);
+        expect(geminiIdx).toBeGreaterThan(0);
+        expect(extIdx).toBeLessThan(geminiIdx);
+        // Provider type description should be visible.
+        expect(output).toContain('openai-compatible');
+      });
+      unmount();
+    });
+
+    it('selects an external provider when its row is highlighted and Enter is pressed', async () => {
+      const { stdin, waitUntilReady, unmount } =
+        await renderComponent(buildDynamicConfig());
+
+      // Open manual view
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      // Confirm first item (the external provider)
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      await waitFor(() => {
+        expect(mockSetModel).toHaveBeenCalledWith('minimax/MiniMax-M3', true);
+        expect(mockOnClose).toHaveBeenCalled();
+      });
+      unmount();
+    });
+  });
+
   describe('Preview Models', () => {
     beforeEach(() => {
       mockGetHasAccessToPreviewModel.mockReturnValue(true);
@@ -467,6 +566,187 @@ describe('<ModelDialog />', () => {
       const output = lastFrame();
       expect(output).not.toContain(PREVIEW_GEMINI_FLASH_LITE_MODEL);
       expect(output).toContain(DEFAULT_GEMINI_FLASH_LITE_MODEL);
+      unmount();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Vesta: scroll indicators for large catalogs (regression 2026-06-28).
+  // Providers.yaml exposes 55 models across multiple vendors. The dialog
+  // must show ▲▼ so users know to scroll — otherwise entries beyond the
+  // first 15 silently disappear and the user concludes models are missing.
+  // ---------------------------------------------------------------------------
+  describe('Vesta: scroll indicators for large external catalogs', () => {
+    // Build a synthetic 55-item catalog mirroring the real providers.yaml.
+    const buildLargeCatalogConfig = (): Config => {
+      const cfg = mockConfig as Config;
+      const externalOptions: Array<{
+        modelId: string;
+        name: string;
+        description: string;
+        tier: string;
+      }> = [];
+
+      const addProvider = (
+        name: string,
+        type: string,
+        baseUrl: string,
+        models: string[],
+      ) => {
+        for (const m of models) {
+          externalOptions.push({
+            modelId: `${name}/${m}`,
+            name: `${name} · ${m}`,
+            description: `${name} provider (${type}) · ${baseUrl}`,
+            tier: 'external',
+          });
+        }
+      };
+
+      addProvider('deepseek', 'openai-compatible', 'https://api.deepseek.com', [
+        'deepseek-v4-flash',
+        'deepseek-v4-pro',
+      ]);
+      addProvider('minimax', 'openai-compatible', 'https://api.minimax.io/v1', [
+        'MiniMax-M3',
+        'MiniMax-M2.7',
+        'MiniMax-M2.7-highspeed',
+        'MiniMax-M2.5',
+        'MiniMax-M2.5-highspeed',
+        'MiniMax-M2.1',
+        'MiniMax-M2.1-highspeed',
+        'MiniMax-M2',
+      ]);
+      addProvider(
+        'groq',
+        'openai-compatible',
+        'https://api.groq.com/openai/v1',
+        [
+          'qwen/qwen3-32b',
+          'meta-llama/llama-4-scout-17b-16e-instruct',
+          'openai/gpt-oss-120b',
+          'qwen/qwen3.6-27b',
+          'llama-3.3-70b-versatile',
+          'openai/gpt-oss-20b',
+          'llama-3.1-8b-instant',
+          'groq/compound',
+          'groq/compound-mini',
+          'canopylabs/orpheus-v1-english',
+          'canopylabs/orpheus-arabic-saudi',
+          'whisper-large-v3',
+          'whisper-large-v3-turbo',
+          'meta-llama/llama-prompt-guard-2-86m',
+          'meta-llama/llama-prompt-guard-2-22m',
+          'allam-2-7b',
+        ],
+      );
+      addProvider(
+        'opencode',
+        'openai-compatible',
+        'https://opencode.ai/zen/go/v1',
+        [
+          'kimi-k2.7-code',
+          'kimi-k2.6',
+          'kimi-k2.5',
+          'qwen3.7-max',
+          'qwen3.7-plus',
+          'qwen3.6-plus',
+          'qwen3.5-plus',
+          'glm-5.2',
+          'glm-5.1',
+          'glm-5',
+          'deepseek-v4-pro',
+          'deepseek-v4-flash',
+          'mimo-v2.5-pro',
+          'mimo-v2.5',
+          'mimo-v2-pro',
+          'mimo-v2-omni',
+          'minimax-m3',
+          'minimax-m2.7',
+          'minimax-m2.5',
+          'hy3-preview',
+        ],
+      );
+      addProvider(
+        'xiaomi',
+        'anthropic',
+        'https://token-plan-sgp.xiaomimimo.com/anthropic',
+        [
+          'mimo-v2-omni',
+          'mimo-v2-pro',
+          'mimo-v2-tts',
+          'mimo-v2.5',
+          'mimo-v2.5-asr',
+          'mimo-v2.5-pro',
+          'mimo-v2.5-tts',
+          'mimo-v2.5-tts-voiceclone',
+          'mimo-v2.5-tts-voicedesign',
+        ],
+      );
+
+      expect(externalOptions).toHaveLength(55); // sanity: real catalog size
+
+      return Object.assign(Object.create(Object.getPrototypeOf(cfg)), cfg, {
+        getExperimentalDynamicModelConfiguration: () => true,
+        getModelConfigService: () => ({
+          getAvailableModelOptions: () => externalOptions,
+          getModelDefinition: () => undefined,
+        }),
+      }) as unknown as Config;
+    };
+
+    it('renders scroll arrows when the external catalog exceeds maxItemsToShow', async () => {
+      const { lastFrame, stdin, waitUntilReady, unmount } =
+        await renderComponent(buildLargeCatalogConfig());
+
+      // Open the manual view (only "Manual" entry in the main view).
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      await waitFor(() => {
+        const output = lastFrame();
+        // The fix pins ▲▼ to appear whenever items.length > maxItemsToShow.
+        // Without the fix, users would only see the first 10 items with no
+        // indication that 45 more entries exist below.
+        expect(output).toContain('▲');
+        expect(output).toContain('▼');
+      });
+      unmount();
+    });
+
+    it('surfaces vendors beyond the first page (MiniMax M2.x and Xiaomi mimo) via scroll', async () => {
+      const { lastFrame, stdin, waitUntilReady, unmount } =
+        await renderComponent(buildLargeCatalogConfig());
+
+      // Open manual view.
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      // Initial page must show some MiniMax variants (they're at the top
+      // of the catalog — first ~10 items).
+      await waitFor(() => {
+        const output = lastFrame();
+        expect(output).toContain('MiniMax-M3');
+      });
+
+      // Jump to item #55 (index 54) via numeric input. The selection list
+      // supports "showNumbers" jumping: typing "55" highlights the 55th
+      // entry and the viewport scrolls down to make it visible.
+      await act(async () => {
+        stdin.write('55');
+      });
+      await waitUntilReady();
+
+      await waitFor(() => {
+        const output = lastFrame();
+        // Xiaomi mimo-v2.5-tts-voicedesign sits near the bottom of the
+        // 55-item list — proving the user CAN reach it via keyboard scroll.
+        expect(output).toContain('mimo-v2.5-tts-voicedesign');
+      });
       unmount();
     });
   });

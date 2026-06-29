@@ -10,9 +10,7 @@ import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { useStreamingContext } from '../contexts/StreamingContext.js';
 import { StreamingState } from '../types.js';
-import { GeminiRespondingSpinner } from './GeminiRespondingSpinner.js';
 import { VestaFlameSpinner } from './VestaFlameSpinner.js';
-import { isVestaEnv } from './AsciiArt.js';
 import { formatDuration } from '../utils/formatters.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { isNarrowWidth } from '../utils/isNarrowWidth.js';
@@ -52,8 +50,8 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
   const streamingState = useStreamingContext();
   const { columns: terminalWidth } = useTerminalSize();
   const isNarrow = isNarrowWidth(terminalWidth);
-  // Vesta mode uses the multi-frame flame spinner; Gemini keeps its own.
-  const Spinner = isVestaEnv() ? VestaFlameSpinner : GeminiRespondingSpinner;
+  // Vesta is the only spinner in the Vesta fork.
+  const Spinner = VestaFlameSpinner;
 
   if (
     streamingState === StreamingState.Idle &&

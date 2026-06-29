@@ -5,12 +5,9 @@
  */
 
 import type React from 'react';
-import { useState } from 'react';
 import { Box } from 'ink';
 import { Notifications } from '../components/Notifications.js';
 import { MainContent } from '../components/MainContent.js';
-import { VestaSplash } from '../components/VestaSplash.js';
-import { isVestaEnv } from '../components/AsciiArt.js';
 import { DialogManager } from '../components/DialogManager.js';
 import { Composer } from '../components/Composer.js';
 import { ExitWarning } from '../components/ExitWarning.js';
@@ -26,31 +23,11 @@ export const DefaultAppLayout: React.FC = () => {
   const uiState = useUIState();
   const { copyModeEnabled } = useInputState();
   const isAlternateBuffer = useAlternateBuffer();
-  const [splashVisible, setSplashVisible] = useState(true);
 
   const { rootUiRef, terminalHeight } = uiState;
   useFlickerDetector(rootUiRef, terminalHeight);
   // If in alternate buffer mode, need to leave room to draw the scrollbar on
   // the right side of the terminal.
-  if (isVestaEnv() && splashVisible) {
-    return (
-      <Box
-        flexDirection="column"
-        width={uiState.terminalWidth}
-        height={isAlternateBuffer ? terminalHeight : undefined}
-        paddingBottom={isAlternateBuffer ? 1 : undefined}
-        flexShrink={0}
-        flexGrow={0}
-        ref={uiState.rootUiRef}
-      >
-        <VestaSplash
-          visible={splashVisible}
-          onDismiss={() => setSplashVisible(false)}
-        />
-      </Box>
-    );
-  }
-
   return (
     <Box
       flexDirection="column"

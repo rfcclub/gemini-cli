@@ -4,77 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const isVestaEnv = () => {
-  if (typeof process === 'undefined') {
-    return false;
-  }
-  if (process.env?.['VITEST']) {
-    return false;
-  }
-  return (
-    process.env?.['VESTA_ATHANOR_DIR'] !== undefined ||
-    process.env?.['ATHANOR_DIR'] !== undefined ||
-    process.argv?.some(
-      (arg) => arg.includes('gemini-vesta') || arg.includes('gemini_vesta'),
-    )
-  );
-};
-
-// --- GEMINI Logos ---
-
-const shortGeminiLogo = `
-   █████████  ██████████ ██████   ██████ █████ ██████   █████ █████
-  ███░░░░░███░░███░░░░░█░░██████ ██████ ░░███ ░░██████ ░░███ ░░███
- ███     ░░░  ░███  █ ░  ░███░█████░███  ░███  ░███░███ ░███  ░███
-░███          ░██████    ░███░░███ ░███  ░███  ░███░░███░███  ░███
-░███    █████ ░███░░█    ░███ ░░░  ░███  ░███  ░███ ░░██████  ░███
-░░███  ░░███  ░███ ░   █ ░███      ░███  ░███  ░███  ░░█████  ░███
- ░░█████████  ██████████ █████     █████ █████ █████  ░░█████ █████
-  ░░░░░░░░░  ░░░░░░░░░░ ░░░░░     ░░░░░ ░░░░░ ░░░░░    ░░░░░ ░░░░░
-`;
-
-const longGeminiLogo = `
- █████████  ██████████ ██████   ██████ █████ ██████   █████ █████ 
-███░░░░░███░░███░░░░░█░░██████ █████ ░░███░░██████ ░░███ ░░███  
-███ ░░░░░░░  ░███  █ ░  ░███░█████░███  ░███ ░███░███ ░███  ░███  
-░███          ░██████    ░███░░███ ░███  ░███ ░███░░███░███  ░███  
-░███    █████ ░███░░█    ░███ ░░░  ░███  ░███ ░███ ░░██████  ░███  
-░░███  ░░███  ░███ ░   █ ░███      ░███  ░███ ░███  ░░█████  ░███  
- ░░█████████  ██████████ █████     █████ █████ █████  ░░████ █████ 
-  ░░░░░░░░░  ░░░░░░░░░░ ░░░░░     ░░░░░ ░░░░░ ░░░░░    ░░░░ ░░░░░  
-`;
-
-const tinyGeminiLogo = `
- ███         █████████ 
-░░░███      ███░░░░░███
-  ░░░███   ███     ░░░ 
-    ░░░███░███         
-     ███░ ░███    █████
-   ███░   ░░███  ░░███ 
- ███░      ░░█████████ 
-░░░         ░░░░░░░░░  
-`;
-
-const shortGeminiLogoCompactText = `
-▟▛▀▀█▖▜█▀▀▜▝██▙▗██▛▝█▛▝██▙ ▜█▘▜█▘
-▐█     ▐█▄▌  █▌▜█▘█▌ █▌ █▌▜▙▐█ ▐█ 
-▝█▖ ▜█▘▐█ ▘▗ █▌   █▌ █▌ █▌ ▜██ ▐█ 
- ▝▀▀▀▀ ▀▀▀▀▀▝▀▀  ▝▀▀▝▀▀▝▀▀  ▀▀▘▀▀▘
-`;
-
-const longGeminiLogoCompactText = `
-▗█▀▀▜▙▝█▛▀▀▌▜██▖▟██▘▜█▘▜██▖▝█▛▝█▛
-█▌     █▙▟  ▐█▝█▛▐█ ▐█ ▐█▝█▖█▌ █▌
-▜▙ ▝█▛ █▌▝ ▖▐█   ▐█ ▐█ ▐█ ▝██▌ █▌
- ▀▀▀▀▘▝▀▀▀▀▘▀▀▘  ▀▀▘▀▀▘▀▀▘ ▝▀▀▝▀▀
-`;
-
-const tinyGeminiLogoCompactText = `
-▟▛▀▀█▖
-▐█     
-▝█▖ ▜█▘
- ▝▀▀▀▀ 
-`;
+// Vesta is a hard fork that has left Google/Gemini support. The
+// `isVestaEnv()` helper is preserved as a stable, always-true shim so
+// legacy call sites continue to compile; new code can read the boolean
+// directly when needed.
+export const isVestaEnv = (): boolean => true;
 
 // --- VESTA Logos ---
 
@@ -199,19 +133,14 @@ export const vestaFlameFrames: readonly VestaFlameFrame[] = [
 ];
 
 // --- Dynamic Exports ---
+// Hard fork: only Vesta branding is shipped. Gemini logos have been
+// removed; these names are kept for backwards compatibility with existing
+// call sites (e.g. `shortAsciiLogo` in VestaSplash.tsx).
 
-export const shortAsciiLogo = isVestaEnv() ? shortVestaLogo : shortGeminiLogo;
-export const longAsciiLogo = isVestaEnv() ? longVestaLogo : longGeminiLogo;
-export const tinyAsciiLogo = isVestaEnv() ? tinyVestaLogo : tinyGeminiLogo;
+export const shortAsciiLogo = shortVestaLogo;
+export const longAsciiLogo = longVestaLogo;
+export const tinyAsciiLogo = tinyVestaLogo;
 
-export const shortAsciiLogoCompactText = isVestaEnv()
-  ? shortVestaLogoCompactText
-  : shortGeminiLogoCompactText;
-
-export const longAsciiLogoCompactText = isVestaEnv()
-  ? longVestaLogoCompactText
-  : longGeminiLogoCompactText;
-
-export const tinyAsciiLogoCompactText = isVestaEnv()
-  ? tinyVestaLogoCompactText
-  : tinyGeminiLogoCompactText;
+export const shortAsciiLogoCompactText = shortVestaLogoCompactText;
+export const longAsciiLogoCompactText = longVestaLogoCompactText;
+export const tinyAsciiLogoCompactText = tinyVestaLogoCompactText;

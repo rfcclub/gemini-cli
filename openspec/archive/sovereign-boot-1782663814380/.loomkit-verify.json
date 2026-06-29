@@ -1,0 +1,10 @@
+{
+  "change": "sovereign-boot",
+  "timestamp": "2026-06-28T16:23:34.316Z",
+  "total_scenarios": 20,
+  "passing": 20,
+  "coverage": 1,
+  "threshold": 100,
+  "passed": true,
+  "uncovered": []
+}

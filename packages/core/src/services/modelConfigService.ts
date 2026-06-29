@@ -219,21 +219,11 @@ export class ModelConfigService {
     });
 
     const externalProviders = ProviderRegistry.getInstance().getAllProviders();
-    const externalOptions = Array.from(externalProviders.entries()).map(
-      ([name, config]) => {
-        const modelId = config.defaultModel
-          ? `${name}/${config.defaultModel}`
-          : name;
-        return {
-          modelId,
-          name: modelId,
-          description: `External model from ${name} provider (${config.type})`,
-          tier: 'custom',
-        };
-      },
-    );
+    const externalOptions = buildExternalProviderOptions(externalProviders);
 
-    return [...mainOptions, ...uniqueManualOptions, ...externalOptions];
+    // Vesta: put external providers first so they're the easiest options
+    // to reach when no Gemini fallback is desired.
+    return [...externalOptions, ...mainOptions, ...uniqueManualOptions];
   }
 
   getModelDefinition(modelId: string): ModelDefinition | undefined {
@@ -663,4 +653,52 @@ export class ModelConfigService {
       return acc;
     }, {});
   }
+}
+
+/**
+ * Build a flat list of availableModelOptions entries for a set of
+ * external providers. When a provider exposes availableModels, one option
+ * is emitted per model. Otherwise a single defaultModel option is emitted.
+ * Providers with neither are skipped.
+ *
+ * Exported for reuse by the ACP layer (acpUtils.buildAvailableModels).
+ */
+export function buildExternalProviderOptions(
+  providers: Map<string, import('./providerRegistry.js').ProviderConfig>,
+): Array<{ modelId: string; name: string; description: string; tier: string }> {
+  const options: Array<{
+    modelId: string;
+    name: string;
+    description: string;
+    tier: string;
+  }> = [];
+
+  for (const [name, config] of providers) {
+    // Resolution order for the picker:
+    //   1. featuredModels — curated subset (preferred for UX; smallest picker)
+    //   2. availableModels — full provider catalog (fallback when no curation)
+    //   3. defaultModel — single-entry fallback when no catalog exists
+    const models =
+      config.featuredModels && config.featuredModels.length > 0
+        ? config.featuredModels
+        : config.availableModels && config.availableModels.length > 0
+          ? config.availableModels
+          : config.defaultModel
+            ? [config.defaultModel]
+            : [];
+
+    for (const model of models) {
+      const description =
+        `${name} provider (${config.type})` +
+        (config.baseUrl ? ` · ${config.baseUrl}` : '');
+      options.push({
+        modelId: `${name}/${model}`,
+        name: `${name} · ${model}`,
+        description,
+        tier: 'external',
+      });
+    }
+  }
+
+  return options;
 }

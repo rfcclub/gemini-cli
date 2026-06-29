@@ -9,18 +9,8 @@ import { renderWithProviders } from '../../test-utils/render.js';
 import { createMockSettings } from '../../test-utils/settings.js';
 
 const mocks = vi.hoisted(() => ({
-  isVestaEnv: vi.fn(() => false),
   useFlameAnimation: vi.fn(() => 0),
 }));
-
-vi.mock('./AsciiArt.js', async () => {
-  const actual =
-    await vi.importActual<typeof import('./AsciiArt.js')>('./AsciiArt.js');
-  return {
-    ...actual,
-    isVestaEnv: mocks.isVestaEnv,
-  };
-});
 
 vi.mock('../hooks/useFlameAnimation.js', () => ({
   useFlameAnimation: mocks.useFlameAnimation,
@@ -31,34 +21,21 @@ import { vestaFlameFrames } from './AsciiArt.js';
 
 describe('<VestaSplash />', () => {
   beforeEach(() => {
-    mocks.isVestaEnv.mockReturnValue(false);
     mocks.useFlameAnimation.mockReturnValue(0);
   });
 
-  it('renders nothing in Gemini mode', async () => {
-    mocks.isVestaEnv.mockReturnValue(false);
-    const { lastFrame } = await renderWithProviders(
-      <VestaSplash visible={true} onDismiss={() => {}} />,
-      { settings: createMockSettings() },
-    );
-    expect(lastFrame({ allowEmpty: true })).toBe('');
-  });
-
-  it('renders the Vesta logo + tagline in Vesta mode', async () => {
-    mocks.isVestaEnv.mockReturnValue(true);
+  it('renders the Vesta logo + tagline', async () => {
     const { lastFrame } = await renderWithProviders(
       <VestaSplash visible={true} onDismiss={() => {}} />,
       { settings: createMockSettings() },
     );
     expect(lastFrame()).toContain('The Athanor is hot. Vesta is ready.');
-    // The flame is rendered with block characters (\u2588). Assert the
-    // char appears regardless of which logo (Vesta/Gemini) is bundled
-    // into shortAsciiLogo at module load time.
+    // The flame is rendered with block characters (▀). Assert the
+    // char appears regardless of which logo variant is bundled.
     expect(lastFrame()).toContain('\u2588');
   });
 
   it('includes the current flame frame in the rendered output', async () => {
-    mocks.isVestaEnv.mockReturnValue(true);
     mocks.useFlameAnimation.mockReturnValue(2);
     const { lastFrame } = await renderWithProviders(
       <VestaSplash visible={true} onDismiss={() => {}} />,
@@ -68,8 +45,7 @@ describe('<VestaSplash />', () => {
     expect(lastFrame()).toContain(vestaFlameFrames[2].rows[0]);
   });
 
-  it('renders nothing when visible is false even in Vesta mode', async () => {
-    mocks.isVestaEnv.mockReturnValue(true);
+  it('renders nothing when visible is false', async () => {
     const { lastFrame } = await renderWithProviders(
       <VestaSplash visible={false} onDismiss={() => {}} />,
       { settings: createMockSettings() },
@@ -78,7 +54,6 @@ describe('<VestaSplash />', () => {
   });
 
   it('calls onDismiss after durationMs', async () => {
-    mocks.isVestaEnv.mockReturnValue(true);
     const onDismiss = vi.fn();
     vi.useFakeTimers();
     try {

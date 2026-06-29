@@ -13,16 +13,18 @@ import { StreamingState } from '../types.js';
 import { describe, it, expect, vi } from 'vitest';
 import * as useTerminalSize from '../hooks/useTerminalSize.js';
 
-// Mock GeminiRespondingSpinner
-vi.mock('./GeminiRespondingSpinner.js', () => ({
-  GeminiRespondingSpinner: ({
+// Mock VestaFlameSpinner to a deterministic static string. Vesta is the only
+// spinner in this fork; the real component drives a 12fps setInterval which
+// produces act() warnings in tests, so we replace it with a constant.
+vi.mock('./VestaFlameSpinner.js', () => ({
+  VestaFlameSpinner: ({
     nonRespondingDisplay,
   }: {
     nonRespondingDisplay?: string;
   }) => {
     const streamingState = React.useContext(StreamingContext)!;
     if (streamingState === StreamingState.Responding) {
-      return <Text>MockRespondingSpinner</Text>;
+      return <Text>MockFlameSpinner</Text>;
     } else if (nonRespondingDisplay) {
       return <Text>{nonRespondingDisplay}</Text>;
     }
@@ -81,7 +83,7 @@ describe('<LoadingIndicator />', () => {
     );
     await waitUntilReady();
     const output = lastFrame();
-    expect(output).toContain('MockRespondingSpinner');
+    expect(output).toContain('MockFlameSpinner');
     expect(output).toContain('Thinking...');
     expect(output).toContain('(esc to cancel, 5s)');
   });
@@ -205,7 +207,7 @@ describe('<LoadingIndicator />', () => {
     });
     await waitUntilReady();
     let output = lastFrame();
-    expect(output).toContain('MockRespondingSpinner');
+    expect(output).toContain('MockFlameSpinner');
     expect(output).toContain('Now Responding');
     expect(output).toContain('(esc to cancel, 2s)');
 

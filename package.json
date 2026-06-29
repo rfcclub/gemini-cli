@@ -1,6 +1,6 @@
 {
   "name": "@google/gemini-cli",
-  "version": "0.47.0-nightly.20260602.gcfcecebe8",
+  "version": "0.47.NaN.20260602.NaN",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -85,7 +85,8 @@
     "cross-spawn": "7.0.6"
   },
   "bin": {
-    "gemini": "bundle/gemini.js"
+    "gemini": "bundle/gemini.js",
+    "gemini-vesta": "bundle/gemini.js"
   },
   "files": [
     "bundle/",
