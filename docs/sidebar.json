@@ -164,11 +164,8 @@
             "badge": "🔬",
             "slug": "docs/cli/model-steering"
           },
-          {
-            "label": "Notifications",
-            "badge": "🔬",
-            "slug": "docs/cli/notifications"
-          },
+          { "label": "Notifications", "badge": "🔬", "slug": "docs/cli/notifications" },
+                    { "label": "Paste images", "slug": "docs/cli/paste-image" },
           { "label": "Plan mode", "slug": "docs/cli/plan-mode" },
           {
             "label": "Subagents",

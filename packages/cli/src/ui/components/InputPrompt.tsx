@@ -39,6 +39,7 @@ import {
   cpLen,
   toCodePoints,
   cpIndexToOffset,
+  stripUnsafeCharacters,
 } from '../utils/textUtils.js';
 import chalk from 'chalk';
 import stringWidth from 'string-width';
@@ -68,6 +69,9 @@ import {
   clipboardHasImage,
   saveClipboardImage,
   cleanupOldClipboardImages,
+  looksLikeImageData,
+  saveImageData,
+  getProjectClipboardImagesDir,
 } from '../utils/clipboardUtils.js';
 import {
   isAutoExecutableCommand,
@@ -242,14 +246,12 @@ const InputLine = memo(
     const [logicalLineIdx] = mapEntry;
     const cursorOnThisLine = focus && cursorPosition[0] === logicalLineIdx;
 
-    const tokens = useMemo(() => {
-      return parseInputForHighlighting(
+    const tokens = useMemo(() => parseInputForHighlighting(
         logicalLine,
         logicalLineIdx,
         transformations,
         ...(cursorOnThisLine ? [cursorPosition[1]] : []),
-      );
-    }, [
+      ), [
       logicalLine,
       logicalLineIdx,
       transformations,
@@ -339,8 +341,7 @@ const InputLine = memo(
       </Box>
     );
   },
-  (prev: InputLineProps, next: InputLineProps) => {
-    return (
+  (prev: InputLineProps, next: InputLineProps) => (
       prev.lineText === next.lineText &&
       prev.absoluteVisualIdx === next.absoluteVisualIdx &&
       prev.mapEntry[0] === next.mapEntry[0] &&
@@ -356,8 +357,7 @@ const InputLine = memo(
       prev.inputWidth === next.inputWidth &&
       prev.cursorPosition[0] === next.cursorPosition[0] &&
       prev.cursorPosition[1] === next.cursorPosition[1]
-    );
-  },
+    ),
 );
 
 const GhostLine = memo(
@@ -1012,13 +1012,80 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             pasteTimeoutRef.current = null;
           }, 40);
         }
+        // Vesta: detect base64-encoded image data in terminal paste BEFORE
+        // sanitizing. If detected, save to disk and insert `@<path>` text
+        // reference so submit-time `@`-command resolution converts it to
+        // an `inlineData` part for the model. Otherwise fall through to
+        // regular text-paste handling (which also strips unsafe control
+        // chars below).
+        //
+        // KeypressHandler is sync (returns boolean | void), so we chain the
+        // async work via Promise.then(). If detection or save fails, we
+        // fall through to text paste in the catch.
+        const detected = looksLikeImageData(key.sequence || '');
+        if (detected) {
+          void (async () => {
+            try {
+              const targetDir = await getProjectClipboardImagesDir(
+                config.getTargetDir(),
+              );
+              const filename = await saveImageData(
+                detected.data,
+                detected.mimeType,
+                targetDir,
+              );
+              if (!filename) {
+                debugLogger.warn(
+                  'Failed to save pasted image, falling through to text paste',
+                );
+                return;
+              }
+              // Fire-and-forget cleanup of old images (covers both
+              // clipboard- and paste- prefixed files per task 3).
+              cleanupOldClipboardImages(config.getTargetDir()).catch(
+                () => {},
+              );
+              const relativePath = path.relative(
+                config.getTargetDir(),
+                path.join(targetDir, filename),
+              );
+              const currentText = buffer.text;
+              const offset = buffer.getOffset();
+              let insertText = `@${relativePath} `;
+              const charBefore =
+                offset > 0 ? currentText[offset - 1] : '';
+              const charAfter =
+                offset < currentText.length ? currentText[offset] : '';
+              if (
+                charBefore &&
+                charBefore !== ' ' &&
+                charBefore !== '\n'
+              ) {
+                insertText = ' ' + insertText;
+              }
+              if (charAfter && charAfter !== ' ' && charAfter !== '\n') {
+                insertText = insertText + ' ';
+              }
+              buffer.replaceRangeByOffset(offset, offset, insertText);
+            } catch (e) {
+              debugLogger.warn('paste-image flow error:', e);
+            }
+          })();
+          return true; // consume the paste event regardless
+        }
+        // Vesta: strip unsafe control chars (FF 0x0C, etc.) from paste before
+        // it lands in the buffer. Terminal bracketed paste of binary/base64
+        // image data can leak raw Form Feed bytes which surfaced as `0c/0c0c`
+        // noise in the chat textbox. stripUnsafeCharacters is the canonical
+        // helper (textUtils.ts:128, tested for 0x0C at textUtils.test.ts:164).
+        const sanitizedSequence = stripUnsafeCharacters(key.sequence || '');
         if (settings.ui?.escapePastedAtSymbols) {
           buffer.handleInput({
             ...key,
-            sequence: escapeAtSymbols(key.sequence || ''),
+            sequence: escapeAtSymbols(sanitizedSequence),
           });
         } else {
-          buffer.handleInput(key);
+          buffer.handleInput({ ...key, sequence: sanitizedSequence });
         }
 
         if (key.sequence && isLargePaste(key.sequence)) {

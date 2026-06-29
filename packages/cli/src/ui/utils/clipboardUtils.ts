@@ -5,7 +5,15 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { createWriteStream, existsSync, statSync } from 'node:fs';
+import {
+  createWriteStream,
+  existsSync,
+  statSync,
+  writeFileSync,
+  readFileSync,
+  mkdirSync,
+  unlinkSync,
+} from 'node:fs';
 import { execSync, spawn } from 'node:child_process';
 import * as path from 'node:path';
 import {
@@ -255,7 +263,7 @@ const saveFileWithXclip = async (tempFilePath: string) => {
  * @param targetDir The root directory of the current project.
  * @returns The absolute path to the images directory.
  */
-async function getProjectClipboardImagesDir(
+export async function getProjectClipboardImagesDir(
   targetDir: string,
 ): Promise<string> {
   const storage = new Storage(targetDir);
@@ -404,7 +412,12 @@ export async function cleanupOldClipboardImages(
 
     for (const file of files) {
       const ext = path.extname(file).toLowerCase();
-      if (file.startsWith('clipboard-') && IMAGE_EXTENSIONS.includes(ext)) {
+      // Match both `clipboard-*` (from Ctrl+V saveClipboardImage) and
+      // `paste-*` (from terminal paste saveImageData). Same age policy.
+      const isMatch =
+        IMAGE_EXTENSIONS.includes(ext) &&
+        (file.startsWith('clipboard-') || file.startsWith('paste-'));
+      if (isMatch) {
         const filePath = path.join(tempDir, file);
         const stats = await fs.stat(filePath);
         if (stats.mtimeMs < oneHourAgo) {
@@ -526,4 +539,182 @@ export function parsePastedPaths(text: string): string | null {
     return null;
   }
   return validPaths.join(' ') + ' ';
+}
+
+// ===========================================================================
+// paste-image feature: detect image data in terminal paste events (Task 1)
+// ===========================================================================
+
+/** Maximum paste size we will treat as image data (10MB raw bytes). */
+const MAX_PASTE_IMAGE_BYTES = 10_000_000;
+
+/** Minimum paste length for image-data heuristic (rejects short false positives). */
+const MIN_PASTE_IMAGE_LENGTH = 100;
+
+export interface ImageData {
+  mimeType: string;
+  data: Buffer;
+}
+
+/**
+ * Verify that the decoded buffer starts with valid magic bytes for the
+ * claimed MIME type. Rejects base64 that decodes but isn't actually an
+ * image (e.g. text starting with `iVBORw0KGgo`).
+ */
+function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 8) return false;
+  if (mimeType === 'image/png') {
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    );
+  }
+  if (mimeType === 'image/jpeg') {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mimeType === 'image/webp') {
+    return (
+      buffer.toString('ascii', 0, 4) === 'RIFF' &&
+      buffer.toString('ascii', 8, 12) === 'WEBP'
+    );
+  }
+  return false;
+}
+
+/**
+ * Detect whether a terminal paste sequence looks like base64-encoded image
+ * data. Returns `{ mimeType, data }` if so, otherwise `null` (regular text
+ * paste path should consume the event unchanged).
+ *
+ * Handles:
+ * - data URI prefix: `data:image/<fmt>;base64,<...>`
+ * - raw base64 with PNG magic: `iVBORw0KGgo...`
+ * - raw base64 with JPEG magic: `/9j/...`
+ * - raw base64 with WebP magic: `UklGR...`
+ *
+ * Rejects:
+ * - plain text (no magic prefix)
+ * - paste < 100 chars (heuristic floor)
+ * - paste > 10MB (memory safety)
+ * - base64 that decodes but lacks valid magic bytes
+ */
+export function looksLikeImageData(
+  sequence: string,
+): ImageData | null {
+  if (
+    sequence.length > MAX_PASTE_IMAGE_BYTES ||
+    sequence.length < MIN_PASTE_IMAGE_LENGTH
+  ) {
+    return null;
+  }
+
+  const trimmed = sequence.trim();
+
+  // Match `data:image/<fmt>;base64,<body>` prefix.
+  const dataUriMatch = trimmed.match(
+    /^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/i,
+  );
+  if (dataUriMatch) {
+    const fmt = dataUriMatch[1].toLowerCase();
+    const mimeType = fmt === 'jpg' ? 'image/jpeg' : `image/${fmt}`;
+    const buffer = Buffer.from(dataUriMatch[2], 'base64');
+    if (verifyMagicBytes(buffer, mimeType)) {
+      return { mimeType, data: buffer };
+    }
+    return null;
+  }
+
+  // Raw base64 — try decoding and verifying magic bytes directly.
+// Note: checking the base64 string prefix (e.g. `iVBORw0KGgo`) is fragile
+// because base64 padding alignment depends on byte count. A 9-byte buffer
+// (8 PNG sig + 1 filler) encodes to `iVBORw0KGgpB...`, not `iVBORw0KGgoB...`.
+// So we decode the whole sequence and check actual magic bytes.
+//
+// Fast-path for plain text: sequences whose first chars are not valid
+// base64 characters will decode to garbage anyway, but skip the decode
+// step for sequences starting with obvious non-base64 chars (whitespace,
+// punctuation). Plain text >100 chars without any base64 char is rare.
+  if (!/^[A-Za-z0-9+/=]/.test(trimmed)) {
+    return null;
+  }
+  const buffer = Buffer.from(trimmed, 'base64');
+  // Try each supported MIME type. Magic bytes are mutually exclusive in
+  // practice (PNG/JPEG/WebP all start with different bytes), so first hit wins.
+  if (verifyMagicBytes(buffer, 'image/png')) {
+    return { mimeType: 'image/png', data: buffer };
+  }
+  if (verifyMagicBytes(buffer, 'image/jpeg')) {
+    return { mimeType: 'image/jpeg', data: buffer };
+  }
+  if (verifyMagicBytes(buffer, 'image/webp')) {
+    return { mimeType: 'image/webp', data: buffer };
+  }
+
+  return null;
+}
+
+// ===========================================================================
+// paste-image feature: persist decoded image bytes to disk (Task 2)
+// ===========================================================================
+
+/** Map of supported MIME types to file extensions for paste-image artifacts. */
+const MIME_EXT_MAP: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+
+/**
+ * Persist decoded image bytes to disk with a unique filename. After writing,
+ * re-reads the file and verifies magic bytes to ensure the bytes on disk
+ * actually match the claimed MIME type. Returns the basename (relative
+ * filename) on success, or `null` on any failure (unsupported MIME, write
+ * error, magic mismatch).
+ *
+ * Filename format: `paste-<unix-ms>-<4-char-random>.<ext>` — the random
+ * suffix prevents collisions on rapid pastes.
+ */
+export async function saveImageData(
+  data: Buffer,
+  mimeType: string,
+  targetDir: string,
+): Promise<string | null> {
+  const ext = MIME_EXT_MAP[mimeType];
+  if (!ext) {
+    return null;
+  }
+
+  try {
+    const randomSuffix = Math.random().toString(36).slice(2, 6);
+    const filename = `paste-${Date.now()}-${randomSuffix}${ext}`;
+    const fullPath = path.join(targetDir, filename);
+
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(fullPath, data);
+
+    // Magic byte verification — re-read and verify the actual bytes on disk
+    // match the claimed MIME. If not, delete the file and return null to
+    // avoid polluting the temp dir with corrupted/unknown artifacts.
+    const reRead = readFileSync(fullPath);
+    if (!verifyMagicBytes(reRead, mimeType)) {
+      try {
+        unlinkSync(fullPath);
+      } catch (cleanupErr) {
+        debugLogger.debug(
+          `Failed to clean up mismatched image ${fullPath}:`,
+          cleanupErr,
+        );
+      }
+      return null;
+    }
+
+    return filename;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    debugLogger.warn(`Failed to save image data: ${message}`);
+    return null;
+  }
 }

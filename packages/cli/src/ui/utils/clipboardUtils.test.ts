@@ -18,6 +18,9 @@ import {
   createWriteStream,
   existsSync,
   statSync,
+  writeFileSync,
+  readFileSync,
+  unlinkSync,
   type Stats,
   type WriteStream,
 } from 'node:fs';
@@ -32,6 +35,10 @@ vi.mock('node:fs', () => ({
   createWriteStream: vi.fn(),
   existsSync: vi.fn(),
   statSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  readFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  unlinkSync: vi.fn(),
 }));
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -64,6 +71,8 @@ import {
   cleanupOldClipboardImages,
   splitDragAndDropPaths,
   parsePastedPaths,
+  looksLikeImageData,
+  saveImageData,
 } from './clipboardUtils.js';
 
 const mockPlatform = (platform: string) => {
@@ -361,6 +370,35 @@ describe('clipboardUtils', () => {
         cleanupOldClipboardImages(mockTargetDir),
       ).resolves.not.toThrow();
     });
+
+    it('removes old paste-*.png files alongside clipboard-*.png', async () => {
+      // Vesta: Task 3 — cleanup extension now covers paste-* files.
+      const oldMtime = Date.now() - 2 * 60 * 60 * 1000; // 2h ago
+      const recentMtime = Date.now() - 5 * 60 * 1000; // 5min ago
+
+      vi.mocked(fs.readdir).mockResolvedValue([
+        'paste-1782663814380-a7f3.png', // old — should be removed
+        'clipboard-1782663814380-x9k2.png', // old — should be removed
+        'paste-1782663814380-b2c4.png', // recent — should be preserved
+        'unrelated.txt', // wrong prefix — ignored
+      ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+      vi.mocked(fs.stat).mockImplementation(
+        async (p: Parameters<typeof fs.stat>[0]) => {
+          const isOld =
+            String(p).includes('paste-1782663814380-a7f3') ||
+            String(p).includes('clipboard-1782663814380-x9k2');
+          return {
+            mtimeMs: isOld ? oldMtime : recentMtime,
+          } as unknown as Awaited<ReturnType<typeof fs.stat>>;
+        },
+      );
+      vi.mocked(fs.unlink).mockResolvedValue(undefined);
+
+      await cleanupOldClipboardImages(mockTargetDir);
+
+      // Both old files (clipboard- AND paste-) should have been unlinked
+      expect(fs.unlink).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('splitDragAndDropPaths', () => {
@@ -593,9 +631,180 @@ describe('clipboardUtils', () => {
         vi.mocked(existsSync).mockReturnValue(true);
         vi.mocked(statSync).mockReturnValue(MOCK_FILE_STATS);
 
-        const result = parsePastedPaths('\\\\server\\share\\file.txt');
-        expect(result).toBe('@\\\\server\\share\\file.txt ');
+        const result = parsePastedPaths('\\\\\\\\server\\\\share\\\\file.txt');
+                expect(result).toBe('@\\\\\\\\server\\\\share\\\\file.txt ');
+              });
+            });
+          });
+
+          // ===========================================================================
+          // paste-image feature: looksLikeImageData detector (Task 1)
+          // ===========================================================================
+          describe('looksLikeImageData', () => {
+              function makeBase64Of(format: 'png' | 'jpeg'): string {
+                  // Build a buffer whose base64 starts with the magic prefix the
+                  // implementation checks for (`iVBORw0KGgo` for PNG, `/9j/` for JPEG).
+                  const filler = new Array(80).fill(0x41); // 'A'
+                  let bytes: number[];
+                  if (format === 'png') {
+                    // Full PNG signature: 89 50 4E 47 0D 0A 1A 0A
+                    bytes = [
+                      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...filler,
+                    ];
+                  } else {
+                    // JPEG SOI: FF D8 FF
+                    bytes = [0xff, 0xd8, 0xff, ...filler];
+                  }
+                  return Buffer.from(bytes).toString('base64');
+                }
+
+                it('detects data URI PNG', () => {
+                  const base64Body = makeBase64Of('png');
+                  const sequence = `data:image/png;base64,${base64Body}`;
+
+                  const result = looksLikeImageData(sequence);
+                  expect(result).not.toBeNull();
+                  expect(result?.mimeType).toBe('image/png');
+                  expect(result?.data).toBeInstanceOf(Buffer);
+                  expect(result?.data[0]).toBe(0x89);
+                });
+
+                it('detects data URI JPEG', () => {
+                  const base64Body = makeBase64Of('jpeg');
+                  const sequence = `data:image/jpeg;base64,${base64Body}`;
+
+                  const result = looksLikeImageData(sequence);
+                  expect(result).not.toBeNull();
+                  expect(result?.mimeType).toBe('image/jpeg');
+                });
+
+            it('detects data URI WebP', () => {
+              // RIFF header + WEBP at offset 8
+              const webpBytes = [
+                0x52, 0x49, 0x46, 0x46, // 'RIFF'
+                0x00, 0x00, 0x00, 0x00, // file size (placeholder)
+                0x57, 0x45, 0x42, 0x50, // 'WEBP'
+                ...new Array(60).fill(0x00),
+              ];
+              const base64Body = Buffer.from(webpBytes).toString('base64');
+              const sequence = `data:image/webp;base64,${base64Body}`;
+
+              const result = looksLikeImageData(sequence);
+              expect(result).not.toBeNull();
+              expect(result?.mimeType).toBe('image/webp');
+            });
+
+            it('detects raw base64 PNG (no prefix)', () => {
+              const base64Body = makeBase64Of('png');
+
+              const result = looksLikeImageData(base64Body);
+              expect(result).not.toBeNull();
+              expect(result?.mimeType).toBe('image/png');
+            });
+
+            it('rejects plain text', () => {
+              const result = looksLikeImageData('hello world this is just plain text');
+              expect(result).toBeNull();
+            });
+
+            it('rejects short data URI (< 100 chars)', () => {
+              const sequence = 'data:image/png;base64,iVBORw0KGgo';
+              // 34 chars total - well under 100
+              const result = looksLikeImageData(sequence);
+              expect(result).toBeNull();
+            });
+
+            it('rejects oversized paste (> 10MB)', () => {
+              const oversized = 'x'.repeat(10_000_001);
+              const result = looksLikeImageData(oversized);
+              expect(result).toBeNull();
+            });
+
+            it('rejects Lorem ipsum (5000 chars, no image prefix)', () => {
+              const lorem =
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(
+                  100,
+                );
+              expect(lorem.length).toBeGreaterThan(5000);
+              const result = looksLikeImageData(lorem);
+              expect(result).toBeNull();
+            });
+
+            it('rejects valid base64 that does not decode to any known image magic', () => {
+              // Base64 of all zeros (or any non-image bytes) should not be
+              // detected as image data even though it's syntactically valid
+              // base64. The implementation requires verifyMagicBytes to pass.
+              const fakeBytes = new Array(80).fill(0x00);
+              const fakeBase64 = Buffer.from(fakeBytes).toString('base64');
+              const result = looksLikeImageData(fakeBase64);
+              expect(result).toBeNull();
+            });
+          });
+
+  // ===========================================================================
+  // paste-image feature: saveImageData persistence (Task 2)
+  // ===========================================================================
+  describe('saveImageData', () => {
+    // Use mocks for file I/O (node:fs is already vi.mocked at top of file).
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    const pngBytes = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ...new Array(60).fill(0x41),
+    ]);
+    // JPEG signature: FF D8 FF E0
+    const jpegBytes = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe0,
+      ...new Array(60).fill(0x42),
+    ]);
+
+    it('saves valid PNG and returns filename with .png extension', async () => {
+      // Mock writeFileSync to be a no-op, readFileSync returns the bytes we wrote
+      vi.mocked(writeFileSync).mockImplementation(() => undefined);
+      vi.mocked(readFileSync).mockReturnValue(pngBytes);
+
+      const result = await saveImageData(pngBytes, 'image/png', '/tmp/img');
+      expect(result).not.toBeNull();
+      expect(result).toMatch(/^paste-\d+-[a-z0-9]{4}\.png$/);
+    });
+
+    it('uses .jpg extension for image/jpeg MIME', async () => {
+      vi.mocked(writeFileSync).mockImplementation(() => undefined);
+      vi.mocked(readFileSync).mockReturnValue(jpegBytes);
+
+      const result = await saveImageData(jpegBytes, 'image/jpeg', '/tmp/img');
+      expect(result).not.toBeNull();
+      expect(result).toMatch(/^paste-\d+-[a-z0-9]{4}\.jpg$/);
+    });
+
+    it('returns null for unsupported MIME type', async () => {
+      const result = await saveImageData(
+        pngBytes,
+        'application/pdf',
+        '/tmp/img',
+      );
+      expect(result).toBeNull();
+      // No I/O should happen for unsupported MIME
+      expect(writeFileSync).not.toHaveBeenCalled();
+    });
+
+    it('returns null and unlinks file when bytes do not match claimed MIME magic', async () => {
+      vi.mocked(writeFileSync).mockImplementation(() => undefined);
+      // Pretend readFileSync returns bytes that don't match PNG magic
+      // (e.g. all zeros) — implementation should detect mismatch and clean up
+      vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(80, 0x00));
+
+      const result = await saveImageData(pngBytes, 'image/png', '/tmp/img');
+      expect(result).toBeNull();
+      expect(unlinkSync).toHaveBeenCalled();
+    });
+
+    it('returns null when writeFileSync throws', async () => {
+      vi.mocked(writeFileSync).mockImplementation(() => {
+        throw new Error('disk full');
       });
+
+      const result = await saveImageData(pngBytes, 'image/png', '/tmp/img');
+      expect(result).toBeNull();
     });
   });
-});
+        });

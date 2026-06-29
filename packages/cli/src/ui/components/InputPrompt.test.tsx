@@ -2443,6 +2443,139 @@ describe('InputPrompt', () => {
 
       unmount();
     });
+
+    it('strips unsafe control chars (Form Feed 0x0C) from paste before buffer insert', async () => {
+      // Regression for user-reported `0c/0c0c` noise when pasting binary
+      // base64 data through terminal bracketed paste. stripUnsafeCharacters
+      // (textUtils.ts:128, tested for 0x0C at textUtils.test.ts:164) is
+      // applied to key.sequence in InputPrompt.tsx paste branch.
+      const noisyPaste = 'hello\x0Cworld\x0C\x0Cfoo';
+      const expectedStripped = 'helloworldfoo';
+      const { stdin, unmount } = await renderWithProviders(
+        <TestInputPrompt {...props} />,
+      );
+
+      await act(async () => {
+        stdin.write(`\x1b[200~${noisyPaste}\x1b[201~`);
+      });
+      await waitFor(() => {
+        expect(props.buffer.handleInput).toHaveBeenCalledTimes(1);
+        expect(props.buffer.handleInput).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'paste',
+            sequence: expectedStripped,
+          }),
+        );
+      });
+
+      unmount();
+    });
+  });
+
+  // ===========================================================================
+  // paste-image feature: terminal paste flow (Task 4)
+  // ===========================================================================
+  describe('paste-image flow', () => {
+    function makePngBase64(): string {
+      // Full PNG signature (8 bytes) + filler — base64 form starts with iVBORw0KGgo
+      const bytes = [
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        ...new Array(80).fill(0x41),
+      ];
+      return Buffer.from(bytes).toString('base64');
+    }
+
+    beforeEach(() => {
+      // Default mocks — tests override as needed.
+      vi.mocked(clipboardUtils.looksLikeImageData).mockReturnValue(null);
+      vi.mocked(clipboardUtils.saveImageData).mockResolvedValue(null);
+      vi.mocked(clipboardUtils.getProjectClipboardImagesDir).mockResolvedValue(
+        '/test/.gemini-clipboard/images',
+      );
+      vi.mocked(clipboardUtils.cleanupOldClipboardImages).mockResolvedValue(
+        undefined,
+      );
+    });
+
+    it('saves pasted PNG and inserts @path reference via replaceRangeByOffset', async () => {
+      const pngBase64 = makePngBase64();
+      const savedFilename = 'paste-1782663814380-a7f3.png';
+
+      vi.mocked(clipboardUtils.looksLikeImageData).mockReturnValue({
+        mimeType: 'image/png',
+        data: Buffer.from(pngBase64, 'base64'),
+      });
+      vi.mocked(clipboardUtils.saveImageData).mockResolvedValue(savedFilename);
+
+      const { stdin, unmount } = await renderWithProviders(
+        <TestInputPrompt {...props} />,
+      );
+
+      await act(async () => {
+        stdin.write(`\x1b[200~${pngBase64}\x1b[201~`);
+      });
+      await waitFor(() => {
+        // Should NOT have called the regular text-paste path
+        expect(props.buffer.handleInput).not.toHaveBeenCalledWith(
+          expect.objectContaining({ sequence: pngBase64 }),
+        );
+        // Should have called saveImageData with the detected PNG data
+        expect(clipboardUtils.saveImageData).toHaveBeenCalled();
+        // Should have inserted @-path reference into buffer
+        expect(props.buffer.replaceRangeByOffset).toHaveBeenCalled();
+      });
+
+      unmount();
+    });
+
+    it('falls through to text paste when paste is not image data', async () => {
+      vi.mocked(clipboardUtils.looksLikeImageData).mockReturnValue(null);
+
+      const textPaste = 'hello world this is just plain text';
+      const { stdin, unmount } = await renderWithProviders(
+        <TestInputPrompt {...props} />,
+      );
+
+      await act(async () => {
+        stdin.write(`\x1b[200~${textPaste}\x1b[201~`);
+      });
+      await waitFor(() => {
+        expect(props.buffer.handleInput).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'paste', sequence: textPaste }),
+        );
+        expect(clipboardUtils.saveImageData).not.toHaveBeenCalled();
+      });
+
+      unmount();
+    });
+
+    it('falls through to text paste when saveImageData returns null', async () => {
+      vi.mocked(clipboardUtils.looksLikeImageData).mockReturnValue({
+        mimeType: 'image/png',
+        data: Buffer.alloc(80),
+      });
+      vi.mocked(clipboardUtils.saveImageData).mockResolvedValue(null);
+
+      const pngBase64 = makePngBase64();
+      const { stdin, unmount } = await renderWithProviders(
+        <TestInputPrompt {...props} />,
+      );
+
+      await act(async () => {
+        stdin.write(`\x1b[200~${pngBase64}\x1b[201~`);
+      });
+      await waitFor(() => {
+        // saveImageData was called but returned null — paste event should
+        // still be consumed (return true), so handleInput should NOT be
+        // called with the raw base64.
+        expect(clipboardUtils.saveImageData).toHaveBeenCalled();
+        expect(props.buffer.handleInput).not.toHaveBeenCalledWith(
+          expect.objectContaining({ sequence: pngBase64 }),
+        );
+      });
+
+      unmount();
+    });
   });
 
   describe('large paste placeholder', () => {
