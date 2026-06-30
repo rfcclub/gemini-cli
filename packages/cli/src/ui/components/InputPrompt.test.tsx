@@ -2476,14 +2476,21 @@ describe('InputPrompt', () => {
   // paste-image feature: terminal paste flow (Task 4)
   // ===========================================================================
   describe('paste-image flow', () => {
-    function makePngBase64(): string {
+    const makePngBase64 = (): string => {
       // Full PNG signature (8 bytes) + filler — base64 form starts with iVBORw0KGgo
       const bytes = [
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        0x89,
+        0x50,
+        0x4e,
+        0x47,
+        0x0d,
+        0x0a,
+        0x1a,
+        0x0a,
         ...new Array(80).fill(0x41),
       ];
       return Buffer.from(bytes).toString('base64');
-    }
+    };
 
     beforeEach(() => {
       // Default mocks — tests override as needed.
@@ -5544,6 +5551,93 @@ describe('InputPrompt', () => {
       await waitFor(() => {
         expect(clean(lastFrame())).toContain(fullLine);
       });
+      unmount();
+    });
+
+    it('falls through to text paste when image exceeds 10MB size limit', async () => {
+      // Spec: oversized image paste (sequence > 10MB) must fall through
+      // to text-paste path. looksLikeImageData returns null for >10MB.
+      vi.mocked(clipboardUtils.looksLikeImageData).mockReturnValue(null);
+
+      const oversizedPaste = 'x'.repeat(10_000_001);
+      const { stdin, unmount } = await renderWithProviders(
+        <TestInputPrompt {...props} />,
+      );
+
+      await act(async () => {
+        stdin.write(`\x1b[200~${oversizedPaste}\x1b[201~`);
+      });
+      await waitFor(() => {
+        // Should NOT attempt to save — just fall through to text paste
+        expect(clipboardUtils.saveImageData).not.toHaveBeenCalled();
+        // Should pass through to regular handleInput (text paste path)
+        expect(props.buffer.handleInput).toHaveBeenCalledWith(
+          expect.objectContaining({ sequence: oversizedPaste }),
+        );
+      });
+
+      unmount();
+    });
+
+    it('inserts @path reference into buffer after paste-image save', async () => {
+      // Spec: when user pastes a base64-encoded image, the system must save
+      // it to disk and insert an `@<path>` text reference into the input
+      // buffer so downstream @-command resolution can convert it to
+      // inlineData for the model.
+      const savedFilename = 'paste-1782663814380-a7f3.png';
+      vi.mocked(clipboardUtils.looksLikeImageData).mockReturnValue({
+        mimeType: 'image/png',
+        data: Buffer.alloc(80),
+      });
+      vi.mocked(clipboardUtils.saveImageData).mockResolvedValue(savedFilename);
+      vi.mocked(clipboardUtils.cleanupOldClipboardImages).mockResolvedValue(
+        undefined,
+      );
+      vi.mocked(clipboardUtils.getProjectClipboardImagesDir).mockResolvedValue(
+        '/test/.gemini-clipboard/images',
+      );
+
+      mockBuffer.text = 'describe this image';
+      mockBuffer.cursor = [0, 0];
+      mockBuffer.lines = ['describe this image'];
+      vi.mocked(mockBuffer.getOffset).mockReturnValue(0);
+
+      const { stdin, unmount } = await renderWithProviders(
+        <TestInputPrompt {...props} />,
+      );
+
+      const pngBytes = [
+        0x89,
+        0x50,
+        0x4e,
+        0x47,
+        0x0d,
+        0x0a,
+        0x1a,
+        0x0a,
+        ...new Array(80).fill(0x41),
+      ];
+      const pngBase64 = Buffer.from(pngBytes).toString('base64');
+      await act(async () => {
+        stdin.write(`\x1b[200~${pngBase64}\x1b[201~`);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Verify @path was inserted into the buffer
+      await waitFor(() => {
+        expect(clipboardUtils.saveImageData).toHaveBeenCalled();
+        expect(props.buffer.replaceRangeByOffset).toHaveBeenCalled();
+      });
+
+      // The third argument to replaceRangeByOffset is the inserted text —
+      // it must contain the saved @path reference for downstream resolution.
+      const insertCall = vi.mocked(props.buffer.replaceRangeByOffset).mock
+        .calls[0];
+      const insertedText = insertCall[2];
+      // Path is relative to project root — check basename appears in @path
+      expect(insertedText).toContain(savedFilename);
+      expect(insertedText).toMatch(/^@\S+\.png\s*$/);
+
       unmount();
     });
   });

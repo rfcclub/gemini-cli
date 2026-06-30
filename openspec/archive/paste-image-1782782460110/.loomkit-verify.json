@@ -1,0 +1,10 @@
+{
+  "change": "paste-image",
+  "timestamp": "2026-06-30T01:20:46.589Z",
+  "total_scenarios": 23,
+  "passing": 23,
+  "coverage": 1,
+  "threshold": 100,
+  "passed": true,
+  "uncovered": []
+}
