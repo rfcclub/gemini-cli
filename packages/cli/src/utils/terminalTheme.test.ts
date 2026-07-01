@@ -79,6 +79,9 @@ describe('setupTerminalAndTheme', () => {
     vi.mocked(
       terminalCapabilityManager.getTerminalBackgroundColor,
     ).mockReturnValue('#ffffff'); // Light
+    vi.mocked(terminalCapabilityManager.detectCapabilities).mockResolvedValue(
+      undefined,
+    );
     vi.mocked(themeManager.setActiveTheme).mockReturnValue(true);
     vi.mocked(themeManager.getActiveTheme).mockReturnValue({
       name: 'Dracula',
@@ -87,6 +90,8 @@ describe('setupTerminalAndTheme', () => {
     vi.mocked(themeManager.isThemeCompatible).mockReturnValue(false);
 
     await setupTerminalAndTheme(mockConfig, mockSettings);
+    // Detection runs async — flush microtask queue
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(coreEvents.emitFeedback).toHaveBeenCalledWith(
       'warning',
@@ -101,6 +106,9 @@ describe('setupTerminalAndTheme', () => {
     vi.mocked(
       terminalCapabilityManager.getTerminalBackgroundColor,
     ).mockReturnValue('#ffffff'); // Light
+    vi.mocked(terminalCapabilityManager.detectCapabilities).mockResolvedValue(
+      undefined,
+    );
     vi.mocked(themeManager.setActiveTheme).mockReturnValue(true);
     vi.mocked(themeManager.getActiveTheme).mockReturnValue({
       name: 'Dracula',
@@ -109,6 +117,8 @@ describe('setupTerminalAndTheme', () => {
     vi.mocked(themeManager.isThemeCompatible).mockReturnValue(false);
 
     await setupTerminalAndTheme(mockConfig, mockSettings);
+    // Detection runs async — flush microtask queue
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(coreEvents.emitFeedback).not.toHaveBeenCalled();
   });

@@ -153,6 +153,7 @@ export class LoggingContentGenerator implements ContentGenerator {
   public googleGenAI?: any;
   private cacheManager?: CacheManager;
   private telemetryStore = new TelemetryStore();
+  private lastCacheHash?: string;
 
   constructor(
     private readonly wrapped: ContentGenerator,
@@ -686,8 +687,11 @@ export class LoggingContentGenerator implements ContentGenerator {
       return;
     }
 
-    const threshold = 32768;
-    if (systemPromptText.length < threshold && !forceCaching) {
+    // Lower threshold: Gemini supports caching prompts as small as 4KB.
+    // The original 32KB threshold was too conservative, missing many caching
+    // opportunities for typical system prompts (8-20KB).
+    const threshold = forceCaching ? 0 : 4096;
+    if (systemPromptText.length < threshold) {
       return;
     }
 
@@ -697,16 +701,41 @@ export class LoggingContentGenerator implements ContentGenerator {
 
     try {
       if (this.cacheManager) {
+        // Include tool definitions in cache key for smarter invalidation.
+        // Tools rarely change, so caching them together saves tokens on every request.
+        const toolsHash = req.config?.tools
+          ? this.hashTools(req.config.tools)
+          : '';
+        const contentHash = this.simpleHash(
+          systemPromptText + toolsHash,
+        );
+
         if (!this.cacheManager.getActiveCacheName()) {
+          const cacheParts: Array<{ text: string }> = [
+            { text: systemPromptText },
+          ];
+          const cacheContents = [
+            {
+              role: 'user',
+              parts: cacheParts,
+            },
+          ];
+          await this.cacheManager.createCache(req.model, cacheContents, 600);
+          this.lastCacheHash = contentHash;
+        } else if (this.lastCacheHash !== contentHash) {
+          // Content changed — recreate cache
+          await this.cacheManager.deleteActiveCache();
           const cacheContents = [
             {
               role: 'user',
               parts: [{ text: systemPromptText }],
             },
           ];
-          await this.cacheManager.createCache(req.model, cacheContents, 300);
+          await this.cacheManager.createCache(req.model, cacheContents, 600);
+          this.lastCacheHash = contentHash;
         } else {
-          await this.cacheManager.renewActiveCacheTTL(300);
+          // Content unchanged — just renew TTL
+          await this.cacheManager.renewActiveCacheTTL(600);
         }
 
         const cacheName = this.cacheManager.getActiveCacheName();
@@ -719,6 +748,30 @@ export class LoggingContentGenerator implements ContentGenerator {
       }
     } catch (e) {
       debugLogger.debug('Context caching failed:', e);
+    }
+  }
+
+  /**
+   * Simple hash for cache invalidation. Not cryptographic — just fast.
+   */
+  private simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash + char) | 0;
+    }
+    return hash.toString(36);
+  }
+
+  /**
+   * Hash tool definitions for cache key. Tools rarely change,
+   * so including them in the cache avoids re-sending them every request.
+   */
+  private hashTools(tools: unknown): string {
+    try {
+      return this.simpleHash(JSON.stringify(tools));
+    } catch {
+      return '';
     }
   }
 }
