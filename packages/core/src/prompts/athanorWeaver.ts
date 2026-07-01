@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { execSync } from 'node:child_process';
 
 /**
  * AthanorWeaver is responsible for loading and formatting the Vesta Athanor
@@ -48,6 +49,54 @@ export class AthanorWeaver {
    */
   public refresh(): void {
     this.cachedContent = null;
+  }
+
+  /**
+   * Generates dynamic context about the current project environment.
+   * Includes project name, working directory, and git branch if available.
+   */
+  public getDynamicContext(): string {
+    const cwd = process.cwd();
+    const projectName = path.basename(cwd);
+    const parts: string[] = [];
+
+    parts.push(`Project: ${projectName}`);
+    parts.push(`Directory: ${cwd}`);
+
+    // Git branch detection
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd,
+        encoding: 'utf-8',
+        timeout: 2000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      if (branch) {
+        parts.push(`Git branch: ${branch}`);
+      }
+    } catch {
+      // Not a git repo or git not available — skip silently
+    }
+
+    // Recent git activity (last commit)
+    try {
+      const lastCommit = execSync(
+        'git log -1 --format="%h %s" 2>/dev/null',
+        {
+          cwd,
+          encoding: 'utf-8',
+          timeout: 2000,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      ).trim();
+      if (lastCommit) {
+        parts.push(`Last commit: ${lastCommit}`);
+      }
+    } catch {
+      // Skip silently
+    }
+
+    return parts.join('\n');
   }
 
   /**

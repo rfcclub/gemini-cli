@@ -280,7 +280,13 @@ export class PromptProvider {
     let athanorPrompt = athanorWeaver.getAthanorContext();
 
     if (athanorPrompt) {
-      sanitizedPrompt = athanorPrompt + sanitizedPrompt;
+      // Add dynamic project context before the static athanor content
+      const dynamicContext = athanorWeaver.getDynamicContext();
+      const dynamicSection = dynamicContext
+        ? `\n\n## CURRENT PROJECT CONTEXT\n\n${dynamicContext}\n\n`
+        : '';
+      sanitizedPrompt =
+        athanorPrompt + dynamicSection + sanitizedPrompt;
     }
 
     // Context Reinjection (Active Topic)
