@@ -100,7 +100,7 @@ import { useKeyMatchers } from '../hooks/useKeyMatchers.js';
 import type { VimMode } from '../contexts/VimModeContext.js';
 
 const SCROLLBAR_GUTTER_WIDTH = 1;
-const EMPTY_TRANSFORMATIONS: any[] = [];
+const EMPTY_TRANSFORMATIONS: unknown[] = [];
 const EMPTY_CURSOR: [number, number] = [0, 0];
 
 /**
@@ -216,7 +216,7 @@ interface InputLineProps {
   absoluteVisualIdx: number;
   mapEntry: [number, number];
   logicalLine: string;
-  transformations: any[];
+  transformations: Array<import('../shared/text-buffer.js').Transformation>;
   visualStartCol: number;
   focus: boolean;
   isOnCursorLine: boolean;
@@ -230,7 +230,7 @@ interface InputLineProps {
 const InputLine = memo(
   ({
     lineText,
-    absoluteVisualIdx,
+    absoluteVisualIdx: _absoluteVisualIdx,
     mapEntry,
     logicalLine,
     transformations,
@@ -240,7 +240,7 @@ const InputLine = memo(
     cursorVisualColAbsolute,
     showCursor,
     inlineGhost,
-    inputWidth,
+    inputWidth: _inputWidth,
     cursorPosition,
   }: InputLineProps) => {
     const [logicalLineIdx] = mapEntry;
@@ -359,6 +359,7 @@ const InputLine = memo(
       prev.cursorPosition[1] === next.cursorPosition[1]
     ),
 );
+InputLine.displayName = 'InputLine';
 
 const GhostLine = memo(
   ({ ghostLine, inputWidth }: { ghostLine: string; inputWidth: number }) => {
@@ -373,6 +374,7 @@ const GhostLine = memo(
     );
   },
 );
+GhostLine.displayName = 'GhostLine';
 
 export const InputPrompt: React.FC<InputPromptProps> = ({
   onSubmit,
