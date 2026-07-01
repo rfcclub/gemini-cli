@@ -708,9 +708,14 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       setShortcutsHelpVisible(false);
     }
     try {
+      debugLogger.log('handleClipboardPaste: checking clipboard for image...');
       if (await clipboardHasImage()) {
+        debugLogger.log('handleClipboardPaste: clipboard has image, saving...');
         const imagePath = await saveClipboardImage(config.getTargetDir());
         if (imagePath) {
+          debugLogger.log(
+            `handleClipboardPaste: image saved to ${imagePath}`,
+          );
           // Clean up old images
           cleanupOldClipboardImages(config.getTargetDir()).catch(() => {
             // Ignore cleanup errors
@@ -739,7 +744,15 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
           // Insert at cursor position
           buffer.replaceRangeByOffset(offset, offset, textToInsert);
+        } else {
+          debugLogger.warn(
+            'handleClipboardPaste: saveClipboardImage returned null',
+          );
         }
+      } else {
+        debugLogger.log(
+          'handleClipboardPaste: no image in clipboard, falling through to text paste',
+        );
       }
 
       if (settings.experimental?.useOSC52Paste) {

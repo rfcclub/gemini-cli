@@ -607,6 +607,9 @@ export function looksLikeImageData(
     sequence.length > MAX_PASTE_IMAGE_BYTES ||
     sequence.length < MIN_PASTE_IMAGE_LENGTH
   ) {
+    debugLogger.log(
+      `looksLikeImageData: rejected (length=${sequence.length}, min=${MIN_PASTE_IMAGE_LENGTH}, max=${MAX_PASTE_IMAGE_BYTES})`,
+    );
     return null;
   }
 
@@ -621,8 +624,14 @@ export function looksLikeImageData(
     const mimeType = fmt === 'jpg' ? 'image/jpeg' : `image/${fmt}`;
     const buffer = Buffer.from(dataUriMatch[2], 'base64');
     if (verifyMagicBytes(buffer, mimeType)) {
+      debugLogger.log(
+        `looksLikeImageData: detected data-uri image (${mimeType}, ${buffer.length} bytes)`,
+      );
       return { mimeType, data: buffer };
     }
+    debugLogger.log(
+      `looksLikeImageData: data-uri match but magic bytes failed for ${mimeType}`,
+    );
     return null;
   }
 
@@ -643,15 +652,27 @@ export function looksLikeImageData(
   // Try each supported MIME type. Magic bytes are mutually exclusive in
   // practice (PNG/JPEG/WebP all start with different bytes), so first hit wins.
   if (verifyMagicBytes(buffer, 'image/png')) {
+    debugLogger.log(
+      `looksLikeImageData: detected raw base64 PNG (${buffer.length} bytes)`,
+    );
     return { mimeType: 'image/png', data: buffer };
   }
   if (verifyMagicBytes(buffer, 'image/jpeg')) {
+    debugLogger.log(
+      `looksLikeImageData: detected raw base64 JPEG (${buffer.length} bytes)`,
+    );
     return { mimeType: 'image/jpeg', data: buffer };
   }
   if (verifyMagicBytes(buffer, 'image/webp')) {
+    debugLogger.log(
+      `looksLikeImageData: detected raw base64 WebP (${buffer.length} bytes)`,
+    );
     return { mimeType: 'image/webp', data: buffer };
   }
 
+  debugLogger.log(
+    `looksLikeImageData: no magic bytes matched (${trimmed.length} chars)`,
+  );
   return null;
 }
 
@@ -684,8 +705,13 @@ export async function saveImageData(
 ): Promise<string | null> {
   const ext = MIME_EXT_MAP[mimeType];
   if (!ext) {
+    debugLogger.warn(`saveImageData: unsupported MIME type: ${mimeType}`);
     return null;
   }
+
+  debugLogger.log(
+    `saveImageData: saving ${mimeType} (${data.length} bytes) to ${targetDir}`,
+  );
 
   try {
     const randomSuffix = Math.random().toString(36).slice(2, 6);
@@ -711,6 +737,9 @@ export async function saveImageData(
       return null;
     }
 
+    debugLogger.log(
+      `saveImageData: saved ${filename} (${data.length} bytes, magic verified)`,
+    );
     return filename;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

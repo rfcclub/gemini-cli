@@ -709,9 +709,9 @@ export const replaceRangeInternal = (
   const prefix = cpSlice(currentLine(startRow), 0, sCol);
   const suffix = cpSlice(currentLine(endRow), eCol);
 
-  const normalisedReplacement = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n');
+  const normalisedReplacement = stripUnsafeCharacters(
+    text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+  );
   const replacementParts = normalisedReplacement.split('\n');
 
   // The combined first line of the new text
@@ -1800,9 +1800,15 @@ function textBufferReducerLogic(
       if (action.pushToUndo !== false) {
         nextState = pushUndoLocal(state);
       }
-      const newContentLines = action.payload
-        .replace(/\r\n?/g, '\n')
-        .split('\n');
+      // Vesta: detect 0x0C in setText to trace leak source
+      if (action.payload.includes('\x0c')) {
+        debugLogger.warn(
+          'setText received 0x0C (Form Feed) — stripped by sanitization',
+        );
+      }
+      const newContentLines = stripUnsafeCharacters(
+        action.payload.replace(/\r\n?/g, '\n'),
+      ).split('\n');
       const lines = newContentLines.length === 0 ? [''] : newContentLines;
 
       let newCursorRow: number;
@@ -1841,6 +1847,12 @@ function textBufferReducerLogic(
       const currentLine = (r: number) => newLines[r] ?? '';
 
       let payload = action.payload;
+      // Vesta: detect 0x0C in insert to trace leak source
+      if (payload.includes('\x0c')) {
+        debugLogger.warn(
+          `insert received 0x0C (Form Feed) — isPaste=${action.isPaste}, stripped by sanitization`,
+        );
+      }
       let newPastedContent = nextState.pastedContent;
 
       if (action.isPaste) {
@@ -1851,10 +1863,15 @@ function textBufferReducerLogic(
           lineCount > LARGE_PASTE_LINE_THRESHOLD ||
           payload.length > LARGE_PASTE_CHAR_THRESHOLD
         ) {
-          const id = generatePastedTextId(payload, lineCount, newPastedContent);
+          const sanitizedPayload = stripUnsafeCharacters(payload);
+          const id = generatePastedTextId(
+            sanitizedPayload,
+            lineCount,
+            newPastedContent,
+          );
           newPastedContent = {
             ...newPastedContent,
-            [id]: payload,
+            [id]: sanitizedPayload,
           };
           payload = id;
         }
@@ -2502,6 +2519,12 @@ function textBufferReducerLogic(
 
     case 'replace_range': {
       const { startRow, startCol, endRow, endCol, text } = action.payload;
+      // Vesta: detect 0x0C in replaceRange to trace leak source
+      if (text.includes('\x0c')) {
+        debugLogger.warn(
+          'replaceRange received 0x0C (Form Feed) — stripped by sanitization',
+        );
+      }
       const nextState = pushUndoLocal(state);
       const newState = replaceRangeInternal(
         nextState,
