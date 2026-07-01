@@ -6,6 +6,7 @@
 
 import { debugLogger } from '../utils/debugLogger.js';
 import type { FailureKind } from '../availability/modelPolicy.js';
+import { ProviderRegistry } from '../services/providerRegistry.js';
 
 /**
  * A fallback candidate model with its provider info.
@@ -78,17 +79,50 @@ export class CrossProviderFallbackChain {
   }
 
   private getFallbackModels(): string[] {
-    // Try environment variable first
+    // Priority 1: Environment variable (explicit override)
     const envFallback = process.env['VESTA_FALLBACK_MODELS'];
     if (envFallback) {
       return envFallback.split(',').map((m) => m.trim()).filter(Boolean);
     }
 
-    // Default fallback chain
-    return [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-    ];
+    // Priority 2: Read all models from providers.yaml via ProviderRegistry
+    try {
+      const registry = ProviderRegistry.getInstance();
+      const providers = registry.getAllProviders();
+      const models: string[] = [];
+
+      for (const [providerName, config] of providers) {
+        if (config.availableModels && config.availableModels.length > 0) {
+          for (const model of config.availableModels) {
+            // Prefix with provider name for non-google providers
+            const fullModel =
+              providerName === 'gemini' ? model : `${providerName}:${model}`;
+            models.push(fullModel);
+          }
+        } else if (config.defaultModel) {
+          const fullModel =
+            providerName === 'gemini'
+              ? config.defaultModel
+              : `${providerName}:${config.defaultModel}`;
+          models.push(fullModel);
+        }
+      }
+
+      if (models.length > 0) {
+        debugLogger.log(
+          `CrossProviderFallback: loaded ${models.length} models from providers.yaml`,
+        );
+        return models;
+      }
+    } catch (e) {
+      debugLogger.warn(
+        'CrossProviderFallback: failed to read providers.yaml:',
+        e,
+      );
+    }
+
+    // Priority 3: Default fallback chain
+    return ['gemini-2.5-flash', 'gemini-2.5-pro'];
   }
 
   private extractProvider(model: string): string {
