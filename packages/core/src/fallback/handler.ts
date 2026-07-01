@@ -19,6 +19,7 @@ import {
   resolvePolicyAction,
   applyAvailabilityTransition,
 } from '../availability/policyHelpers.js';
+import { getCrossProviderFallbackChain } from './cross-provider-fallback.js';
 
 export const UPGRADE_URL_PAGE = 'https://goo.gle/set-up-gemini-code-assist';
 
@@ -110,6 +111,24 @@ export async function handleFallback(
 
   const handler = config.getFallbackModelHandler();
   if (typeof handler !== 'function') {
+    // Try cross-provider fallback as last resort when no handler is configured
+    const crossProviderChain = getCrossProviderFallbackChain(failedModel);
+    const crossResult = crossProviderChain.handleFailure(
+      failedModel,
+      failureKind,
+      error,
+    );
+    if (crossResult.nextModel) {
+      debugLogger.log(
+        `Cross-provider fallback (no handler): ${crossResult.reason}`,
+      );
+      return processIntent(
+        config,
+        'retry_always',
+        crossResult.nextModel,
+        failedModel,
+      );
+    }
     return null;
   }
 
