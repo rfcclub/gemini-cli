@@ -15,6 +15,7 @@ import {
   checkExhaustive,
   AuthType,
   UserAccountManager,
+  calculateModelCost,
 } from '@google/gemini-cli-core';
 import { ConsoleSummaryDisplay } from './ConsoleSummaryDisplay.js';
 import process from 'node:process';
@@ -452,6 +453,31 @@ export const Footer: React.FC = () => {
             header,
             () => <Text color={itemColor}>{formatted} tokens</Text>,
             formatted.length + 7,
+          );
+        }
+        break;
+      }
+      case 'session-cost': {
+        let totalCost = 0;
+        for (const [model, m] of Object.entries(
+          uiState.sessionStats.metrics.models,
+        )) {
+          totalCost += calculateModelCost(
+            model,
+            m.tokens.input,
+            m.tokens.candidates,
+            m.tokens.cached,
+          );
+        }
+        if (totalCost > 0) {
+          const formatted = `$${totalCost.toFixed(2)}`;
+          addCol(
+            id,
+            header,
+            () => (
+              <Text color={theme.status.warning}>{formatted}</Text>
+            ),
+            formatted.length,
           );
         }
         break;

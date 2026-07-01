@@ -67,6 +67,11 @@ export const ALL_ITEMS = [
     header: 'tokens',
     description: 'Total tokens used in the session (not shown when zero)',
   },
+  {
+    id: 'session-cost',
+    header: 'cost',
+    description: 'Estimated session cost in USD (not shown when zero)',
+  },
 ] as const;
 
 export type FooterItemId = (typeof ALL_ITEMS)[number]['id'];
