@@ -36,6 +36,8 @@ import { ListMcpResourcesTool } from '../tools/list-mcp-resources.js';
 import { GrepTool } from '../tools/grep.js';
 import { RipGrepTool, resolveRipgrepPath } from '../tools/ripGrep.js';
 import { GlobTool } from '../tools/glob.js';
+import { GitWorktreeTool } from '../tools/git-worktree.js';
+import { FileWatcherTool } from '../tools/file-watcher.js';
 import { ActivateSkillTool } from '../tools/activate-skill.js';
 import { EditTool } from '../tools/edit.js';
 import { ShellTool } from '../tools/shell.js';
@@ -3977,6 +3979,12 @@ export class Config implements McpContext, AgentLoopContext {
 
     maybeRegister(GlobTool, () =>
       registry.registerTool(new GlobTool(this, this.messageBus)),
+    );
+    maybeRegister(GitWorktreeTool, () =>
+      registry.registerTool(new GitWorktreeTool(this, this.messageBus)),
+    );
+    maybeRegister(FileWatcherTool, () =>
+      registry.registerTool(new FileWatcherTool(this, this.messageBus)),
     );
     maybeRegister(ActivateSkillTool, () =>
       registry.registerTool(new ActivateSkillTool(this, this.messageBus)),
