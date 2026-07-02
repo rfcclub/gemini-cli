@@ -37,19 +37,22 @@ import { PreCompressTrigger } from '../hooks/types.js';
 /**
  * Default threshold for compression token count as a fraction of the model's
  * token limit. If the chat history exceeds this threshold, it will be compressed.
+ * Vesta: lowered from 0.5 to 0.4 to compress earlier and keep more headroom.
  */
-const DEFAULT_COMPRESSION_TOKEN_THRESHOLD = 0.5;
+const DEFAULT_COMPRESSION_TOKEN_THRESHOLD = 0.4;
 
 /**
  * The fraction of the latest chat history to keep. A value of 0.3
  * means that only the last 30% of the chat history will be kept after compression.
+ * Vesta: increased from 0.3 to 0.4 to preserve more recent context.
  */
-const COMPRESSION_PRESERVE_THRESHOLD = 0.3;
+const COMPRESSION_PRESERVE_THRESHOLD = 0.4;
 
 /**
  * The budget for function response tokens in the preserved history.
+ * Vesta: reduced from 50K to 30K to be more aggressive with tool outputs.
  */
-const COMPRESSION_FUNCTION_RESPONSE_TOKEN_BUDGET = 50_000;
+const COMPRESSION_FUNCTION_RESPONSE_TOKEN_BUDGET = 30_000;
 
 /**
  * Returns the index of the oldest item to keep when compressing. May return
