@@ -86,6 +86,8 @@ const cliConfig = {
   entryPoints: { gemini: 'packages/cli/index.ts' },
   outdir: 'bundle',
   splitting: true,
+  minify: process.env['NODE_ENV'] === 'production',
+  treeShaking: true,
   define: {
     __filename: '__chunk_filename',
     __dirname: '__chunk_dirname',
