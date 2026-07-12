@@ -377,7 +377,7 @@ const GhostLine = memo(
 );
 GhostLine.displayName = 'GhostLine';
 
-export const InputPrompt: React.FC<InputPromptProps> = ({
+export const InputPrompt: React.FC<InputPromptProps> = memo(({
   onSubmit,
   onClearScreen,
   config,
@@ -925,6 +925,12 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       // focused.
       /// We want to handle paste even when not focused to support drag and drop.
       if (!focus && key.name !== 'paste') {
+        return false;
+      }
+
+      // Let page scroll keys bubble to ScrollableList/MainContent
+      // instead of being swallowed by the text buffer.
+      if (key.name === 'pageup' || key.name === 'pagedown') {
         return false;
       }
 
@@ -2110,4 +2116,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       {suggestionsPosition === 'below' && suggestionsNode}
     </>
   );
-};
+});
+
+InputPrompt.displayName = 'InputPrompt';

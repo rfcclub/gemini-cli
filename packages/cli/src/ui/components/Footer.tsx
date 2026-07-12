@@ -24,7 +24,6 @@ import { MemoryUsageDisplay } from './MemoryUsageDisplay.js';
 import { ContextUsageDisplay } from './ContextUsageDisplay.js';
 import { QuotaDisplay } from './QuotaDisplay.js';
 import { DebugProfiler } from './DebugProfiler.js';
-import { VestaFlameIndicator } from './VestaFlameIndicator.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { useQuotaState } from '../contexts/QuotaContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
@@ -564,7 +563,6 @@ export const Footer: React.FC = () => {
 
   return (
     <Box width={terminalWidth} paddingX={1} overflow="hidden" flexWrap="nowrap">
-      <VestaFlameIndicator />
       <FooterRow items={rowItems} showLabels={showLabels} />
     </Box>
   );
