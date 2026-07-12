@@ -317,9 +317,37 @@ export class GeminiChat {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     ensureStableToolIds(this.agentHistory.get() as HistoryTurn[]);
     this.chatRecordingService = new ChatRecordingService(context);
-    this.lastPromptTokenCount = estimateTokenCountSync(
-      this.agentHistory.flatMap((c) => c.content.parts || []),
+    this.lastPromptTokenCount = this.estimateFullPromptTokens();
+  }
+
+  /**
+   * Estimates total prompt tokens including system instruction, tool declarations,
+   * and conversation history. This provides a much more accurate baseline than
+   * estimating from history alone (which misses the system prompt and tools).
+   */
+  private estimateFullPromptTokens(): number {
+    const parts: Part[] = this.agentHistory.flatMap(
+      (c) => c.content.parts || [],
     );
+
+    // Include system instruction
+    if (this.systemInstruction) {
+      parts.push({ text: this.systemInstruction });
+    }
+
+    // Include tool declarations (function declarations are serialized as JSON)
+    for (const tool of this.tools) {
+      if (tool.functionDeclarations) {
+        parts.push({
+          functionResponse: {
+            name: 'tool_declarations',
+            response: { tools: tool.functionDeclarations },
+          },
+        });
+      }
+    }
+
+    return estimateTokenCountSync(parts);
   }
 
   get loopContext(): AgentLoopContext {
@@ -995,9 +1023,7 @@ export class GeminiChat {
     });
     ensureStableToolIds(wrappedHistory);
     this.agentHistory.set(wrappedHistory);
-    this.lastPromptTokenCount = estimateTokenCountSync(
-      this.agentHistory.flatMap((c) => c.content.parts || []),
-    );
+    this.lastPromptTokenCount = this.estimateFullPromptTokens();
     this.chatRecordingService.updateMessagesFromHistory(
       this.agentHistory.get(),
     );

@@ -4,45 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { createMockSettings } from '../../test-utils/settings.js';
 
-const mocks = vi.hoisted(() => ({
-  useFlameAnimation: vi.fn(() => 0),
-}));
-
-vi.mock('../hooks/useFlameAnimation.js', () => ({
-  useFlameAnimation: mocks.useFlameAnimation,
-}));
-
 import { VestaSplash } from './VestaSplash.js';
-import { vestaFlameFrames } from './AsciiArt.js';
+import { shortAsciiLogo } from './AsciiArt.js';
 
 describe('<VestaSplash />', () => {
-  beforeEach(() => {
-    mocks.useFlameAnimation.mockReturnValue(0);
-  });
-
   it('renders the Vesta logo + tagline', async () => {
     const { lastFrame } = await renderWithProviders(
       <VestaSplash visible={true} onDismiss={() => {}} />,
       { settings: createMockSettings() },
     );
     expect(lastFrame()).toContain('The Athanor is hot. Vesta is ready.');
-    // The flame is rendered with block characters (▀). Assert the
-    // char appears regardless of which logo variant is bundled.
-    expect(lastFrame()).toContain('\u2588');
-  });
-
-  it('includes the current flame frame in the rendered output', async () => {
-    mocks.useFlameAnimation.mockReturnValue(2);
-    const { lastFrame } = await renderWithProviders(
-      <VestaSplash visible={true} onDismiss={() => {}} />,
-      { settings: createMockSettings() },
-    );
-    // The peak frame is all block characters.
-    expect(lastFrame()).toContain(vestaFlameFrames[2].rows[0]);
+    // Logo is the first row of the ASCII art; assert the leading characters
+    // appear so we don't depend on block-character ranges.
+    expect(lastFrame()).toContain(shortAsciiLogo.trim().split(/\r?\n/)[0]);
   });
 
   it('renders nothing when visible is false', async () => {

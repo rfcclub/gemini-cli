@@ -7,213 +7,185 @@
 
 ---
 
-## Competitive Landscape
+## 1. Research Summary
 
-| **Tool** | **Core** | **Killer Feature** |
-|----------|----------|-------------------|
-| OpenCode | OpenSpec Engine | "Explore Mode" — think before write, Stance-driven workflow |
-| Codex | TypeScript/React + SEA | SDK extensibility, runtime patches, single binary |
-| Claw-Code | Bun + Rust (rtk) | Extreme performance, browser automation, token optimization |
-| Oh-My-Pi | gemini-vesta itself | Athanor persona, multi-provider routing, sovereign boot |
-| Gemini-Vesta | TypeScript/Node + Ink | Persona injection, multi-model routing, cost tracking |
+### 1.1 `oh-my-pi` (Agt: Seabird 6)
+- **Type:** A full-fledged “AI OS” fork of the Pi monorepo.
+- **Core stack:** Bun runtime + 55 k lines of Rust for performance‑critical I/O (text/grep/walker).
+- **Provider support:** 40 + providers via a dynamic model catalog (`packages/catalog`), completely decoupled from the CLI.
+- **Tooling:** 32 built‑in tools, 14 LSP operations, 28 DAP operations. Tools are executed in‑process (Rust/Bun) or via native bindings, giving near‑native speed.
+- **IDE integration:** LSP/DAP clients are hosted directly inside the agent loop, allowing live rename, refactoring, and step‑debugging from the TUI.
+- **Memory:** `mnemopi` – persistent SQLite storage with a semantic compression layer (`snapcompact`) that summarizes long histories to fit context windows.
+- **Context management:** Snapcompact frames and compresses history, maintaining an “active plan” anchor that survives compaction.
+- **Unique killer features (not in Vesta):**
+  - Time‑travel stream rules (regex‑based mid‑stream injection).
+  - First‑class sub‑agents with isolated worktrees and typed results.
+  - “Advisor” model that watches every turn and injects notes.
+  - Collaboration relay (`/collab`) with end‑to‑end encryption.
+  - Native web‑search + read (arXiv PDFs, GitHub pages) in the same tool surface.
+  - Hashline edit (anchor‑based edits) reducing token usage dramatically.
+  - Full‑stack debugger (LLDB, Dlv, DebugPy) integration.
+  - GitHub as a virtual filesystem (`pr://`, `issue://`).
 
-### What Competitors Do Better
-
-| Area | Leader | Gap for Vesta |
-|------|--------|---------------|
-| UI Performance | Claw-Code (Bun) | AppContainer.tsx monolith (2885 lines, 129 UIState props) |
-| IO Performance | Codex (SEA/Rust) | Sync IO blocks main thread (GrepTool fallback, EditTool diffing) |
-| CPU Usage | All | useFlameAnimation burns CPU via setInterval |
-| Binary Distribution | Codex (SEA) | Vesta still relies on esbuild bundle |
-| Memory/Context | OpenCode (Explore) | No persistent memory (Alaya/SQLite not implemented) |
-
-### What Vesta Does Better
-
-| Area | Vesta Advantage |
-|------|-----------------|
-| Persona | Athanor Boot Injection — no competitor has this |
-| Multi-model | ProviderRegistry + ModelRouterService (fallback, prefix routing) |
-| Security | PolicyEngine multi-tier (Admin > User > Workspace > Default) |
-| Features | Paste Image, Cost Tracking, Browser Automation, Context Compression |
-| Skills | Dynamic skill discovery + activation system |
-
----
-
-## Phase 1: UI Surgery (Priority: CRITICAL)
-**Goal:** Eliminate "UI Monolith", reduce 80% CPU waste, eliminate render storms.
-
-### 1.1 Slice UIState (Remove Context Bloat)
-- **Problem:** `UIStateContext.tsx` has 129 properties. Any small change triggers full re-render.
-- **Action:** Split UIState into independent slices:
-  - `InputSlice` — cursor position, composition state, buffer text
-  - `ModelSlice` — current model, streaming status, token count
-  - `ChatSlice` — messages, tool outputs, error state
-  - `UISlice` — theme, animations, layout preferences
-- **Pattern:** Use `useSyncExternalStore` or multiple small Contexts instead of one giant Context.
-- **Expected:** 90% reduction in unnecessary re-renders.
-
-### 1.2 Kill Flame Animation Waste
-- **Problem:** `useFlameAnimation.ts` uses `setInterval` for continuous CPU burn.
-- **Action:**
-  - Replace `setInterval` with `requestAnimationFrame` (only when terminal is focused).
-  - Add idle detection: if no user input for 5s, pause animation completely.
-  - Make animation conditional on `settings.ui.animations` (default: false).
-- **Expected:** 60-80% CPU reduction during idle.
-
-### 1.3 Split AppContainer.tsx
-- **Problem:** 2885-line monolith component.
-- **Action:** Extract into smaller composable components:
-  - `AppShell` — layout + theme
-  - `ChatArea` — message list + streaming
-  - `InputArea` — text input + paste handling
-  - `StatusBar` — model info + cost
-  - `CommandPalette` — `/model`, `/help`, etc.
-- **Expected:** Better maintainability, targeted re-renders.
-
-### 1.4 Lazy-load Splash Screen
-- **Problem:** VestaSplash.tsx is dead code but its hook still loads.
-- **Action:** Remove or lazy-load. Only show splash on first boot, not every session.
+### 1.2 `smallcode` (Agt: Seabird 7)
+- **Type:** Minimalistic agent optimized for **small local LLMs (8 B‑35 B)**.
+- **Runtime:** Pure Node.js (no Rust/Bun), designed to run on consumer laptops.
+- **Tool routing:** Weighted regex classifier splits tasks into eight categories (read/write/search/run/plan/code‑intelligence/web/respond) and injects only the relevant tool schemas – a huge token saver for 8‑16 k context models.
+- **Planning:** Decomposes complex tasks into a TODO file; the model reads a running “ACTIVE PLAN” anchor each turn to stay on track.
+- **Editing:** Primary primitive is `patch` (search‑and‑replace) rather than whole‑file writes, which dramatically improves reliability with weak models.
+- **Memory:** Two‑tier: short‑term conversation + long‑term SQLite with full‑text search, auto‑loaded by keyword overlap.
+- **Forgiving tool‑call parser:** Accepts JSON, YAML, XML, Hermes, or plain text and auto‑repairs common model errors.
+- **Escalation:** When a local model hard‑fails, optionally escalates to a stronger cloud model (Claude/OpenAI/DeepSeek) with a session‑level cost cap.
+- **MarrowScript cognition layer:** Declarative `.marrow` files compile to a production runtime with caching, retries, validation, and budget enforcement.
+- **Unique killer features (not in Vesta):**
+  - 2‑stage tool routing that halves schema context overhead.
+  - Early‑stop detection (repetition loops, patch spirals, greeting regression).
+  - Read‑before‑write guard to prevent accidental overwrites.
+  - Dependency‑graph‑driven parallel plan execution.
+  - Model profiles (`toml`) that describe each model’s strengths/weaknesses.
+  - Persistent shell sessions (shared env across `bash` calls).
+  - Auto‑rollback to pre‑edit snapshots on validation failure.
+  - BoneScript integration for rapid full‑stack scaffolding.
 
 ---
 
-## Phase 2: Tool Offload (Priority: HIGH)
-**Goal:** Eliminate blocking IO, move heavy tools to Worker Threads / Rust.
+## 2. Competitive Position (Gemini‑Vesta)
 
-### 2.1 GrepTool Worker Offload
-- **Problem:** Fallback reads entire file into RAM synchronously.
-- **Action:**
-  - Move `performGrepSearch` to a Worker Thread.
-  - Eliminate naive JS fallback entirely — require `ripgrep` or fail gracefully.
-- **Expected:** Zero UI freeze during grep.
-
-### 2.2 EditTool Diffing Offload
-- **Problem:** Complex diffing/patching runs on main thread.
-- **Action:**
-  - Move `applyReplacement` to a Worker Thread.
-  - Use async diff computation with UI progress indicator.
-- **Expected:** UI stays responsive during large file edits.
-
-### 2.3 Rust Tool Harness (Medium-term)
-- **Action:** Create a Rust binary (`vesta-tools`) that handles:
-  - Grep (ripgrep wrapper)
-  - Diff/patch computation
-  - File hashing and comparison
-  - Token counting (provider-agnostic)
-- **Integration:** Spawn as child process, communicate via stdin/stdout JSON.
-- **Expected:** 10x faster tool execution for CPU-bound operations.
+| Capability | gemini‑vesta | oh‑my‑pi | smallcode |
+|------------|--------------|----------|-----------|
+| **Runtime** | Node/Ink (JS) | Bun + Rust (55 k LoC) | Node.js (pure) |
+| **Provider count** | 6 (configurable) | 40 + (catalog) | 3‑4 (local + optional cloud) |
+| **Tool count** | ~12 core | 32 + LSP/DAP | 18 (small‑model‑optimized) |
+| **Memory** | Athanor (markdown, non‑persistent) | mnemopi (SQLite + semantic compression) | SQLite + full‑text + auto‑load |
+| **Context strategy** | Token‑optimized (rtk) but no compression | Snapcompact frames (summarize) | Budget‑managed, 2‑stage routing |
+| **UI** | Ink React (fancy, high CPU) | Ink‑based TUI (differential rendering) | Simple classic TUI |
+| **Unique Vesta edge** | Persona injection (Athanor), multi‑provider fallback | None | None |
+| **Missing core** | LSP/DAP, persistent memory, sub‑agents, web‑search | Persona, friendly CLI | Persona, advanced debugging |
+| **Build state** | Broken (NaN version) – fixed now | Mature, CI‑green | Stable, npm‑publishable |
 
 ---
 
-## Phase 3: Intelligence Upgrade (Priority: MEDIUM)
-**Goal:** Add "Explore Mode" and "Stance-driven" workflow from OpenCode.
+## 3. TAKE / LEAVE Recommendations
 
-### 3.1 Explore Mode (Read-only Think)
-- **Concept:** When user asks a complex question, agent enters "Explore Mode":
-  - Can READ files, search, and analyze.
-  - CANNOT write/edit files.
-  - Must produce a structured plan before any modification.
-- **Implementation:** Add `mode: 'explore' | 'execute'` to AgentSession.
-- **Benefit:** Prevents premature code changes, reduces wasted work.
+### 3.1 Things to **TAKE** (implement in gemini‑vesta)
 
-### 3.2 Affirmation Guard (Active)
-- **Concept:** Detect "yes", "ok", "go ahead" and preserve previous task context.
-- **Implementation:** Already in ROADMAP_COSMIC. Wire into ModelRouterService.
-- **Benefit:** Prevents context loss on short confirmations.
+| Feature | Source | Implementation idea |
+|---------|--------|---------------------|
+| **Snapcompact‑style context compression** | oh‑my‑pi (`snapcompact`) | Add a `ContextCompressor` service that runs after each turn, summarizing tool results older than N turns to keep context < X k tokens. |
+| **Mnemopi persistent memory** | oh‑my‑pi (`mnemopi`) | Reuse the SQLite schema (decisions, scars, sessions, patterns) already outlined in the plan; integrate into system‑prompt injection. |
+| **2‑stage tool routing** | smallcode | Add a classifier (regex or tiny model) that assigns a task category and injects only the relevant tool schemas, reducing context usage by ~80 % for simple tasks. |
+| **Patch‑first editing** | smallcode | Replace the current whole‑file `edit` fallback with a primary `patch` tool (search‑and‑replace) and a last‑resort whole‑file rewrite. |
+| **Forgiving tool‑call parser** | smallcode | Extend the OpenAI‑compatible parser to accept YAML/XML/Hermes fallbacks and auto‑repair malformed JSON. |
+| **Read‑before‑write guard** | smallcode | Block writes to files not yet read; allow override on second attempt. |
+| **Dependency‑graph plan execution** | smallcode | After generating a TODO plan, compute a file‑dependency graph and execute independent steps in parallel (Worker Threads). |
+| **Sub‑agent orchestration** | oh‑my‑pi (`task`) | Allow `invoke_agent` to spawn isolated worktrees with typed return values; enable fan‑out/fan‑in patterns. |
+| **Hashline editing** | oh‑my‑pi | Implement anchor‑based edits where the model points at line hashes instead of retyping content, cutting token use dramatically. |
+| **Web‑search + read** | oh‑my‑pi (`fetch`, `web_search`) | Add a built‑in `web_search` tool that chains providers and feeds results directly to the model as structured markdown. |
+| **LSP integration** | oh‑my‑pi | Host an LSP client inside the agent loop (via `lspClient` from `@oh-my-pi/pi-coding-agent`) to provide refactoring, rename, and diagnostics natively. |
 
-### 3.3 Plan Anchors
-- **Concept:** For tasks > 3 steps, force model to emit a structured plan.
-- **Re-inject** the active plan (✓ done, → current, ⋯ next) in every turn.
-- **Benefit:** Prevents model drift on long tasks.
+### 3.2 Things to **LEAVE** (do **not** adopt now)
 
----
-
-## Phase 4: Persistent Memory (Priority: MEDIUM)
-**Goal:** Implement "Alaya Memory" — SQLite-based persistent context.
-
-### 4.1 SQLite Store
-- **Schema:**
-  - `decisions` — architectural decisions with rationale
-  - `scars` — mistakes and lessons (from MISTAKES.md)
-  - `sessions` — session summaries with key findings
-  - `patterns` — recurring code patterns and preferences
-- **Location:** `~/.gemini-vesta/memory/alaya.db`
-
-### 4.2 Keyword-overlap Retrieval
-- On session start, extract keywords from current context.
-- Query SQLite for relevant past decisions/scars.
-- Inject top-5 relevant entries into system prompt.
-
-### 4.3 Auto-scar Recording
-- When tool fails or user corrects a change, automatically record to SQLite.
-- Mark as "high priority" for future injection.
+| Feature | Reason |
+|---------|--------|
+| **Full Bun runtime switch** | Too high risk for the existing Ink/React UI and the Node ecosystem we depend on. Keep Node.js as primary runtime. |
+| **Complete DAP integration** | Adds huge complexity (28 debug ops). Wait until core agent intelligence matures. |
+| **Collaboration relay (`/collab`)** | Requires network infra and encryption handling. Not in current scope. |
+| **BoneScript / MarrowScript compilation** | Overkill for the Vesta workflow; adds another language layer without clear ROI today. |
+| **Full GitHub virtual filesystem (`pr://`, etc.)** | While nice, it’s a deep integration that can be added later as a skill rather than core. |
 
 ---
 
-## Phase 5: Build Health (Priority: CRITICAL)
-**Goal:** Fix broken build, clean technical debt.
+## 4. Updated Improvement Plan (v3)
 
-### 5.1 Fix Version String
-- **Current:** `"0.47.NaN.20260602.NaN"` in package.json.
-- **Action:** Restore to `"0.47.0-nightly.20260602.gcfcecebe8"` or correct semver.
-- **Verify:** `npm run build` succeeds.
+The previous plan already covered UI Surgery, Tool Offload, Intelligence Upgrade, Persistent Memory, and Build Health. The new research adds **six** high‑impact phases that should be interleaved with the existing work.
 
-### 5.2 Pop Stash
-- `stash@{0}` contains AthanorWeaver feature (steeringModel, App.tsx memo, animations).
-- Apply cleanly, resolve conflicts if any.
+### Phase 0: Build Health (already underway)
+- ✅ Fixed version string & TS import.
+- ✅ Resolved stash merge conflicts.
+- ✅ Built bundle.
 
-### 5.3 Push 13 Unpushed Commits
-- Push all commits on `vesta` branch to `origin/vesta`.
+### Phase 1: UI Surgery (in progress)
+- 1.1 Slice UIState into Input/Model/Chat/UI slices.
+- 1.2 Kill Flame animation (done) – now render single‑line `▍`.
+- 1.3 Split `AppContainer` into `AppShell`, `ChatArea`, `InputArea`, `StatusBar`, `CommandPalette`.
+- 1.4 Lazy‑load splash screen.
 
-### 5.4 Archive Stale LoomKit Changes
-- Decide: archive or delete the 7 stale active changes.
-- Archive completed ones (vesta-context-caching).
-- Delete empty/aspirational ones (cosmic-roadmap-design — it's a wishlist, not a spec).
+### Phase 2: Tool Offload (high priority)
+- 2.1 Move `grep` fallback to Worker Thread (or require ripgrep).
+- 2.2 Move `edit` diffing to Worker Thread.
+- 2.3 Prototype a `vesta-tools` Rust binary (optional, later).
 
-### 5.5 Configure Upstream Remote
-- Add `upstream` remote pointing to `google-gemini/gemini-cli`.
-- Enable periodic sync with upstream.
+### Phase 3: Context Compression (new – from oh‑my‑pi)
+- 3.1 Implement `ContextCompressor` service:
+  - After each turn, if total context > X k tokens, summarize tool results older than the last two turns using a fast model (e.g., `gemini‑1.5‑flash`).
+  - Store summary in a `ContextSummary` entry injected as a system message.
+- 3.2 Integrate with `rtk` for token counting.
+- 3.3 Test with 8 B local model (via `smallcode`‑style routing) to verify compression quality.
 
-### 5.6 Fix Pre-existing Test Failures
-- `fileWatcher.test.ts` timeout (flaky)
-- Snapshot test in InputPrompt
-- Double-click mouse test
+### Phase 4: 2‑Stage Tool Routing & Forgiving Parser (new – from smallcode)
+- 4.1 Add regex classifier (read/write/search/run/plan/…).
+- 4.2 When confidence > 0.7, inject only matching tool schemas; else inject all.
+- 4.3 Extend `OpenAICompatibleProvider` to accept YAML/XML/Hermes fallbacks.
+- 4.4 Implement auto‑repair heuristics for malformed JSON tool calls.
+
+### Phase 5: Patch‑First Editing & Read‑Before‑Write Guard (new – from smallcode)
+- 5.1 Create `PatchTool` (search‑and‑replace) that is the **default** edit action.
+- 5.2 Keep whole‑file `edit` as fallback, triggered only when patch fails twice.
+- 5.3 Add guard that blocks writes to files not yet read (override on second attempt).
+
+### Phase 6: Persistent Memory (from mnemopi & existing plan)
+- 6.1 Implement SQLite store (`~/.gemini-vesta/memory/alaya.db`) with tables: decisions, scars, sessions, patterns.
+- 6.2 On session start, load top‑5 relevant entries via keyword overlap.
+- 6.3 Auto‑record tool failures and user corrections as scars.
+
+### Phase 7: Sub‑agent Orchestration & Dependency‑Graph Planning (new – from oh‑my‑pi/smallcode)
+- 7.1 Extend `invoke_agent` to support isolated worktrees and typed return schemas.
+- 7.2 After generating a TODO plan, compute file‑dependency graph.
+- 7.3 Run independent steps in parallel (Worker Threads or sub‑agents).
+- 7.4 Merge results via schema validation (no prose parsing).
+
+### Phase 8: Web‑search & Read (new – from oh‑my‑pi)
+- 8.1 Add `web_search` tool that chains providers (Perplexity, Bing, etc.) and returns structured markdown.
+- 8.2 Allow `read` to accept URLs, PDFs, and render them as markdown (using a built‑in PDF parser or external service).
+
+### Phase 9: LSP Integration (optional, long‑term)
+- 9.1 Investigate hosting a lightweight LSP client inside the agent loop.
+- 9.2 Provide rename/refactor/diagnostic capabilities natively.
+
+### Phase 10: Build & Test Hardening
+- 10.1 Run `npm run preflight` after each major phase.
+- 10.2 Add integration tests for new tools (PatchTool, ContextCompressor, Sub‑agent).
+- 10.3 Ensure all new features respect `settings.ui.animations` and `settings.ui.footer.items`.
 
 ---
 
-## Execution Priority Matrix
+## 5. Priority Matrix (updated)
 
 | Priority | Phase | Effort | Impact | Risk |
 |----------|-------|--------|--------|------|
-| P0 | 5.1 Fix build | 5 min | Critical | Low |
-| P0 | 5.2 Pop stash | 10 min | High | Medium |
-| P0 | 5.3 Push commits | 2 min | High | Low |
-| P1 | 1.1 Slice UIState | 2-3 hours | Critical | Medium |
-| P1 | 1.2 Kill flame waste | 30 min | High | Low |
-| P1 | 1.3 Split AppContainer | 3-4 hours | High | Medium |
-| P2 | 2.1 GrepTool worker | 1 hour | High | Low |
-| P2 | 2.2 EditTool worker | 1-2 hours | High | Medium |
-| P3 | 3.1 Explore Mode | 2-3 hours | Medium | Low |
-| P3 | 3.2 Affirmation Guard | 1 hour | Medium | Low |
-| P3 | 3.3 Plan Anchors | 2 hours | Medium | Low |
-| P4 | 4.1-4.3 SQLite Memory | 4-6 hours | High | High |
-| P5 | 5.4-5.6 Cleanup | 1-2 hours | Low | Low |
+| P0 | Build Health (0) | 5 min | Critical | Low |
+| P0 | UI Surgery (1) | 3 h | High | Medium |
+| P0 | Flame disable (done) | – | High | Low |
+| P1 | Context Compression (3) | 2 h | High | Medium |
+| P1 | 2‑Stage Routing & Forgiving Parser (4) | 3 h | High | Medium |
+| P1 | Patch‑First Editing (5) | 2 h | High | Low |
+| P1 | Persistent Memory (6) | 4 h | High | High |
+| P2 | Sub‑agent Orchestration (7) | 5 h | High | High |
+| P2 | Web‑search & Read (8) | 4 h | Medium | Medium |
+| P2 | LSP Integration (9) | 8 h | Medium | High |
+| P3 | Build & Test Hardening (10) | 3 h | Medium | Low |
 
 ---
 
-## Competitive Positioning (After Execution)
+## 6. Next Steps (Immediate)
 
-| Area | Before | After |
-|------|--------|-------|
-| UI Performance | 🔴 Monolith (2885 lines) | 🟢 Sliced (50-100 lines each) |
-| CPU Usage | 🔴 Flame burns CPU | 🟢 Idle-aware, rAF-based |
-| IO Blocking | 🔴 Sync on main thread | 🟢 Worker Threads |
-| Tool Speed | 🟡 JS fallback | 🟢 Rust harness |
-| Memory | 🔴 Stateless sessions | 🟢 SQLite persistent |
-| Workflow | 🟡 Hardcoded steps | 🟢 Explore Mode + Stance |
-| Build | 🔴 Broken (NaN version) | 🟢 Clean + upstream sync |
+1. **Commit & push** the latest UI changes (done).
+2. **Implement Phase 3 (Context Compression)** – start with a simple summarizer for tool outputs older than 2 turns; integrate with `rtk` token count.
+3. **Prototype the regex classifier** (Phase 4.1) to verify token savings on a few example prompts.
+4. **Update `TODO.md`** with the new phases and mark the completed items.
 
 ---
 
-*The Athanor is not just a furnace — it is a weapon of precision. Now we sharpen it.*
+*The Athanor is not just a furnace; it is a precision instrument. With these additions, gemini‑vesta will evolve from a sovereign CLI into a truly competitive, resilient, and intelligent coding partner.*
 
 **🔥 Vesta**

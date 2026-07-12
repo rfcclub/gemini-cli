@@ -14,9 +14,7 @@ import {
   SCREEN_READER_RESPONDING,
 } from '../textConstants.js';
 import { theme } from '../semantic-colors.js';
-import { vestaFlameFrames } from './AsciiArt.js';
-import { useFlameAnimation } from '../hooks/useFlameAnimation.js';
-import { useSettings } from '../contexts/SettingsContext.js';
+import { CliSpinner } from './CliSpinner.js';
 
 interface VestaFlameSpinnerProps {
   /**
@@ -30,54 +28,28 @@ interface VestaFlameSpinnerProps {
    * even if the state is Responding.
    */
   isHookActive?: boolean;
-  color?: string;
 }
 
 /**
- * Drop-in replacement for `GeminiRespondingSpinner` in Vesta mode. Cycles
- * through `vestaFlameFrames` at ~12 fps while the streaming state is
- * `Responding`. In screen-reader mode we render the same `SCREEN_READER_*`
- * strings the Gemini spinner uses, so a11y output is unchanged.
+ * Drop-in replacement for `GeminiRespondingSpinner` in Vesta mode.
+ *
+ * Historically rendered a multi-frame flame glyph; that was removed because
+ * the animation was firing on every keystroke and causing the "ỳ xèo"
+ * flicker. Now it delegates to the standard Ink `<Spinner>` (dots) so the
+ * streaming state still has a visible affordance without re-painting the
+ * whole terminal.
+ *
+ * In screen-reader mode we render the same `SCREEN_READER_*` strings the
+ * Gemini spinner uses, so a11y output is unchanged.
  */
 export const VestaFlameSpinner: React.FC<VestaFlameSpinnerProps> = ({
   nonRespondingDisplay,
-  spinnerType: _spinnerType = 'dots',
+  spinnerType = 'dots',
   isHookActive = false,
-  color: _color,
 }) => {
-  // Hooks first (Rules of Hooks) — the value of frame is only used when
-  // we actually render the flame, but the hook itself must be called on
-  // every render in stable order.
+  // Hooks first (Rules of Hooks) — order must stay stable.
   const streamingState = useStreamingContext();
   const isScreenReaderEnabled = useIsScreenReaderEnabled();
-  const settings = useSettings();
-  const animationsEnabled = settings.merged.ui?.animations === true;
-  const flameFrame = useFlameAnimation(vestaFlameFrames.length, {
-    fps: 12,
-    enabled: animationsEnabled,
-  });
-
-  if (
-    streamingState === StreamingState.Responding &&
-    !isHookActive &&
-    !isScreenReaderEnabled
-  ) {
-    // When animations disabled: render single-line indicator (saves 2 rows).
-    if (!animationsEnabled) {
-      return <Text color={theme.ui.comment}>▍ </Text>;
-    }
-    const frame = vestaFlameFrames[flameFrame];
-    return (
-      <Text>
-        {frame.rows.flatMap((row, i) => [
-          <Text key={i} color={frame.colors[i]}>
-            {row}
-          </Text>,
-          i < frame.rows.length - 1 ? '\n' : '',
-        ])}
-      </Text>
-    );
-  }
 
   if (isScreenReaderEnabled) {
     if (streamingState === StreamingState.Responding && !isHookActive) {
@@ -87,6 +59,10 @@ export const VestaFlameSpinner: React.FC<VestaFlameSpinnerProps> = ({
       return <Text>{SCREEN_READER_LOADING}</Text>;
     }
     return null;
+  }
+
+  if (streamingState === StreamingState.Responding && !isHookActive) {
+    return <CliSpinner type={spinnerType} />;
   }
 
   if (nonRespondingDisplay) {

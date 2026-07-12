@@ -39,8 +39,8 @@
 
 ### 2. Implementation of ROADMAP_COSMIC Phase 1: The Cognition Adapter
 - [x] **Deterministic Tool Routing:** Implement the regex-based classifier in `ModelRouter` to prune tools and save tokens. (Completed 2026-06-04).
-- [ ] **Plan Anchors:** Develop the parsing logic for multi-step plans and re-inject the "Active Plan" state into system prompts.
-- [ ] **Affirmation Guard:** Add detection for "yes/ok" messages to maintain context continuity.
+- [x] **Plan Anchors:** Detect numbered plans (1. 2. 3.) and checkbox plans [ ]/[x]. Render ✓/→/⋯ progress markers into system prompt. (Completed 2026-07-12).
+- [x] **Affirmation Guard:** Detect "yes/ok" messages and preserve last enabledTools from routing decision for context continuity. (Completed 2026-07-12).
 
 ---
 

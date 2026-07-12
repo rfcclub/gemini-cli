@@ -293,6 +293,10 @@ export class AnthropicProvider implements LlmProvider {
       let buffer = '';
       let isDone = false;
       const toolCallMap = new Map<number, { name: string; arguments: string }>();
+      // Accumulate token usage across streaming chunks.
+      // Anthropic sends prompt tokens in message_start and output tokens in message_delta.
+      let accumulatedPromptTokens: number | undefined;
+      let accumulatedOutputTokens: number | undefined;
 
       try {
         while (!isDone) {
@@ -363,21 +367,29 @@ export class AnthropicProvider implements LlmProvider {
                       else if (reason === 'tool_use') finishReason = 'STOP';
                     }
                     if (result.usage) {
-                      usageMetadata = {
-                        candidatesTokenCount: result.usage.output_tokens,
-                      };
+                      accumulatedOutputTokens = result.usage.output_tokens;
                     }
                     break;
                   case 'message_start':
                     if (result.message?.usage) {
-                      usageMetadata = {
-                        promptTokenCount: result.message.usage.input_tokens,
-                      };
+                      accumulatedPromptTokens = result.message.usage.input_tokens;
                     }
                     break;
                   case 'message_stop':
                     isDone = true;
                     break;
+                }
+
+                // Build usage metadata from accumulated values.
+                // Always include totalTokenCount when both values are known.
+                if (accumulatedPromptTokens !== undefined || accumulatedOutputTokens !== undefined) {
+                  const prompt = accumulatedPromptTokens ?? 0;
+                  const output = accumulatedOutputTokens ?? 0;
+                  usageMetadata = {
+                    promptTokenCount: prompt,
+                    candidatesTokenCount: output,
+                    totalTokenCount: prompt + output,
+                  };
                 }
 
                 const chunkFunctionCalls = parts

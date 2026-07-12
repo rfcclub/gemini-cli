@@ -138,6 +138,20 @@ export class ClassifierStrategy implements RoutingStrategy {
     const startTime = Date.now();
     try {
       const model = context.requestedModel ?? config.getModel();
+
+      // Skip classifier for non-Gemini models — the classifier only chooses
+      // between Gemini flash/pro variants, which is irrelevant for other providers.
+      const modelLower = model.toLowerCase();
+      const isGemini = modelLower.startsWith('gemini-') ||
+        modelLower.startsWith('gemma-') ||
+        modelLower.startsWith('auto-gemini');
+      if (!isGemini) {
+        debugLogger.log(
+          `[Routing] Bypassing Classifier: non-Gemini model "${model}".`,
+        );
+        return null;
+      }
+
       if (
         (await config.getNumericalRoutingEnabled()) &&
         isGemini3Model(model, config)

@@ -102,7 +102,24 @@ export function findCompressSplitPoint(
   return lastSplitPoint;
 }
 
+/**
+ * Returns true if the model string is a Gemini model (starts with 'gemini-' or 'gemma-').
+ * Non-Gemini models (Anthropic, OpenAI-compatible, etc.) should use their own model
+ * for compression rather than falling back to a Gemini model.
+ */
+function isGeminiModel(model: string): boolean {
+  const lower = model.toLowerCase();
+  return lower.startsWith('gemini-') || lower.startsWith('gemma-') || lower.startsWith('auto-gemini');
+}
+
 export function modelStringToModelConfigAlias(model: string): string {
+  // Non-Gemini models: use the model directly instead of mapping to a Gemini alias.
+  // The modelConfigService will resolve it via the default path, and ProviderFactory
+  // will route to the correct provider (Anthropic, OpenAI-compat, etc.).
+  if (!isGeminiModel(model)) {
+    return model;
+  }
+
   switch (model) {
     case PREVIEW_GEMINI_MODEL:
     case PREVIEW_GEMINI_3_1_MODEL:

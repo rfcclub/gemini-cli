@@ -9,12 +9,16 @@ import type { ContentGenerator } from '../core/contentGenerator.js';
 import { debugLogger } from './debugLogger.js';
 
 // Token estimation constants
-// ASCII characters (0-127) are roughly 3-4 chars per token.
-// We use 0.33 (~3 chars/token) as a conservative baseline for mixed text and code.
+// ASCII alphanumeric characters are roughly 3-4 chars per token.
 export const ASCII_TOKENS_PER_CHAR = 0.33;
-// Non-ASCII characters (including CJK) are often 1-2 tokens per char.
+// CJK characters (Chinese, Japanese, Korean) are often 1-2 tokens per char.
 // We use 1.5 as a conservative estimate to avoid underestimation.
-export const NON_ASCII_TOKENS_PER_CHAR = 1.5;
+export const CJK_TOKENS_PER_CHAR = 1.5;
+// Backwards-compatible alias — old consumers import NON_ASCII_TOKENS_PER_CHAR
+export const NON_ASCII_TOKENS_PER_CHAR = CJK_TOKENS_PER_CHAR;
+// Code symbols ({, }, (, ), ;, =, etc.) are typically 1 token per 1-2 chars.
+// We use 0.5 as a reasonable mid-point.
+export const CODE_SYMBOL_TOKENS_PER_CHAR = 0.5;
 // Structural overhead per Content turn (role prefixes, separators).
 export const MSG_OVERHEAD_TOKENS = 5;
 // Fixed token estimate for images
@@ -34,8 +38,38 @@ const MAX_RECURSION_DEPTH = 3;
 
 const DEFAULT_CHARS_PER_TOKEN = 4;
 
+// Set of ASCII characters that are code symbols (operators, punctuation).
+// These tend to tokenize at a higher rate than alphanumeric text (~0.5 tokens/char).
+const CODE_SYMBOLS = new Set([
+  '{', '}', '(', ')', '[', ']', ';', '=', '<', '>', '+', '-', '*', '/',
+  '&', '|', '!', '?', ':', ',', '.', '@', '#', '$', '%', '^', '~', '`',
+  '\\', '"', "'",
+]);
+
+/**
+ * Returns true if the given Unicode codepoint is a CJK character
+ * (Chinese, Japanese, Korean). These tokenize at a higher rate (~1.5 tokens/char).
+ * Non-CJK characters above 127 (Vietnamese diacritics, Latin Extended, emoji)
+ * are NOT CJK and should be estimated at the ASCII rate.
+ */
+function isCJK(code: number): boolean {
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) ||  // CJK Unified Ideographs
+    (code >= 0x3400 && code <= 0x4dbf) ||  // CJK Extension A
+    (code >= 0xf900 && code <= 0xfaff) ||  // CJK Compatibility Ideographs
+    (code >= 0x3040 && code <= 0x309f) ||  // Hiragana
+    (code >= 0x30a0 && code <= 0x30ff) ||  // Katakana
+    (code >= 0xac00 && code <= 0xd7af) ||  // Hangul Syllables
+    (code >= 0xff00 && code <= 0xffef)     // Halfwidth/Fullwidth Forms
+  );
+}
+
 /**
  * Heuristic estimation of tokens for a text string.
+ * Uses a three-tier character classification:
+ * 1. CJK characters: 1.5 tokens/char (high density)
+ * 2. ASCII code symbols: 0.5 tokens/char (operators, punctuation)
+ * 3. Everything else (ASCII alphanumeric, Latin diacritics, Vietnamese): 1/charsPerToken
  */
 function estimateTextTokens(text: string, charsPerToken: number): number {
   if (text.length > MAX_CHARS_FOR_FULL_HEURISTIC) {
@@ -47,10 +81,20 @@ function estimateTextTokens(text: string, charsPerToken: number): number {
 
   // Optimized loop: charCodeAt is faster than for...of on large strings
   for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) <= 127) {
-      tokens += asciiTokensPerChar;
+    const code = text.charCodeAt(i);
+    if (code <= 127) {
+      // ASCII: check if it's a code symbol
+      if (CODE_SYMBOLS.has(text[i])) {
+        tokens += CODE_SYMBOL_TOKENS_PER_CHAR;
+      } else {
+        tokens += asciiTokensPerChar;
+      }
+    } else if (isCJK(code)) {
+      tokens += CJK_TOKENS_PER_CHAR;
     } else {
-      tokens += NON_ASCII_TOKENS_PER_CHAR;
+      // Non-CJK non-ASCII (Vietnamese diacritics, Latin Extended, emoji)
+      // These tokenize at a similar rate to ASCII alphanumeric text.
+      tokens += asciiTokensPerChar;
     }
   }
   return tokens;

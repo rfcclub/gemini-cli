@@ -7,9 +7,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { Box, Text, useIsScreenReaderEnabled } from 'ink';
-import { vestaFlameFrames, FIRE_PALETTE, shortAsciiLogo } from './AsciiArt.js';
-import { useFlameAnimation } from '../hooks/useFlameAnimation.js';
-import { useSettings } from '../contexts/SettingsContext.js';
+import { FIRE_PALETTE, shortAsciiLogo } from './AsciiArt.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 
 interface VestaSplashProps {
@@ -26,31 +24,23 @@ interface VestaSplashProps {
 const TAGLINE = 'The Athanor is hot. Vesta is ready.';
 
 /**
- * Boot splash for Vesta. Renders the short Vesta logo + tagline with
- * a 4-frame flame animation cycling next to it. Auto-dismisses after
+ * Boot splash for Vesta. Renders the short Vesta logo + tagline as a
+ * static block — the previous flame animation was removed because it
+ * contributed to UI flicker during boot. Auto-dismisses after
  * `durationMs` (default 1500) or on any keypress.
  *
  * - Returns `null` when `visible` is false.
- * - In screen-reader mode, renders a static flame + tagline so a11y users
- *   still get the equivalent information without animation.
+ * - In screen-reader mode, renders the same text content (logo + tagline)
+ *   without color so a11y users get the equivalent information.
  */
 export const VestaSplash: React.FC<VestaSplashProps> = ({
   visible,
   onDismiss,
   durationMs = 1500,
 }) => {
-  // Hooks first (Rules of Hooks). useSettings, useFlameAnimation, and
-  // useIsScreenReaderEnabled must be called every render regardless of
-  // `visible`.
-  const settings = useSettings();
-  const animationsEnabled =
-    settings.merged.ui?.animations === true ||
-    process.env['VITEST'] !== undefined;
+  // Hooks first (Rules of Hooks). useIsScreenReaderEnabled must be called
+  // every render regardless of `visible`.
   const screenReader = useIsScreenReaderEnabled();
-  const flameFrame = useFlameAnimation(vestaFlameFrames.length, {
-    fps: 8,
-    enabled: visible && animationsEnabled,
-  });
 
   // Auto-dismiss after durationMs.
   useEffect(() => {
@@ -91,20 +81,12 @@ export const VestaSplash: React.FC<VestaSplashProps> = ({
     );
   }
 
-  const frame = vestaFlameFrames[flameFrame];
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       <Text color={FIRE_PALETTE[3]} bold>
         {shortAsciiLogo}
       </Text>
       <Box marginTop={1}>
-        <Box marginRight={1} flexDirection="column">
-          {frame.rows.map((row, i) => (
-            <Text key={i} color={frame.colors[i]}>
-              {row}
-            </Text>
-          ))}
-        </Box>
         <Text color={FIRE_PALETTE[1]} italic>
           {TAGLINE}
         </Text>
