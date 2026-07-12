@@ -28,6 +28,7 @@ import { ListeningIndicator } from './ListeningIndicator.js';
 import { HalfLinePaddedBox } from './shared/HalfLinePaddedBox.js';
 import {
   type TextBuffer,
+  type Transformation,
   logicalPosToOffset,
   expandPastePlaceholders,
   getTransformUnderCursor,
@@ -216,7 +217,7 @@ interface InputLineProps {
   absoluteVisualIdx: number;
   mapEntry: [number, number];
   logicalLine: string;
-  transformations: Array<import('../shared/text-buffer.js').Transformation>;
+  transformations: Array<Transformation>;
   visualStartCol: number;
   focus: boolean;
   isOnCursorLine: boolean;
