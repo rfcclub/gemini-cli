@@ -21,12 +21,18 @@ import { useSettings } from '../contexts/SettingsContext.js';
 export const VestaFlameIndicator: React.FC = () => {
   // Hooks first — Rules of Hooks requires unconditional, stable order.
   const settings = useSettings();
-  const frameIndex = useFlameAnimation(vestaMiniFlameFrames.length, {
-    fps: 1.5,
-    enabled: true,
-  });
+
+  const animationsEnabled =
+    settings.merged.ui?.animations === true;
 
   const screenReader = settings.merged.ui?.accessibility?.screenReader === true;
+
+  // Hook always called — but enabled=false freezes at frame 0, no setInterval.
+  const frameIndex = useFlameAnimation(vestaMiniFlameFrames.length, {
+    fps: 1.5,
+    enabled: animationsEnabled,
+  });
+
   if (screenReader) {
     return <Text color="#FF8C00">🔥 </Text>;
   }

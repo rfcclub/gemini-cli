@@ -39,13 +39,10 @@ export function useFlameAnimation(
   options: UseFlameAnimationOptions = {},
 ): number {
   const { fps = 1.5, enabled = true } = options;
-  // Vesta fork: the flame is always-on. The flame is the signature visual
-  // of this binary and must not be silenced by an inherited user setting.
-  const animationsEnabled = true;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
-    if (!enabled || !animationsEnabled || frameCount <= 1) {
+    if (!enabled || frameCount <= 1) {
       return;
     }
     debugState.debugNumAnimatedComponents++;
@@ -61,7 +58,7 @@ export function useFlameAnimation(
       debugState.debugNumAnimatedComponents--;
       clearInterval(interval);
     };
-  }, [enabled, animationsEnabled, frameCount, fps]);
+  }, [enabled, frameCount, fps]);
 
   return frame;
 }

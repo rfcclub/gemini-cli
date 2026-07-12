@@ -16,6 +16,7 @@ import {
 import { theme } from '../semantic-colors.js';
 import { vestaFlameFrames } from './AsciiArt.js';
 import { useFlameAnimation } from '../hooks/useFlameAnimation.js';
+import { useSettings } from '../contexts/SettingsContext.js';
 
 interface VestaFlameSpinnerProps {
   /**
@@ -49,13 +50,22 @@ export const VestaFlameSpinner: React.FC<VestaFlameSpinnerProps> = ({
   // every render in stable order.
   const streamingState = useStreamingContext();
   const isScreenReaderEnabled = useIsScreenReaderEnabled();
-  const flameFrame = useFlameAnimation(vestaFlameFrames.length, { fps: 12 });
+  const settings = useSettings();
+  const animationsEnabled = settings.merged.ui?.animations === true;
+  const flameFrame = useFlameAnimation(vestaFlameFrames.length, {
+    fps: 12,
+    enabled: animationsEnabled,
+  });
 
   if (
     streamingState === StreamingState.Responding &&
     !isHookActive &&
     !isScreenReaderEnabled
   ) {
+    // When animations disabled: render single-line indicator (saves 2 rows).
+    if (!animationsEnabled) {
+      return <Text color={theme.ui.comment}>▍ </Text>;
+    }
     const frame = vestaFlameFrames[flameFrame];
     return (
       <Text>
