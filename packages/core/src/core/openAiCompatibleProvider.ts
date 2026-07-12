@@ -17,6 +17,7 @@ import type { ProviderConfig } from '../services/providerRegistry.js';
 import type { LlmRole } from '../telemetry/llmRole.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { ProviderFactory } from './providerFactory.js';
+import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 
 export class OpenAiCompatibleProvider implements LlmProvider {
   constructor(private readonly config: ProviderConfig) {}
@@ -288,12 +289,63 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         },
       ],
       functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
-      usageMetadata: {
-        promptTokenCount: result.usage?.prompt_tokens,
-        candidatesTokenCount: result.usage?.completion_tokens,
-        totalTokenCount: result.usage?.total_tokens,
-      },
+      usageMetadata: this.computeUsageMetadata(
+        request.contents as Content[],
+        request.config?.systemInstruction,
+        parts,
+        result.usage,
+      ),
     } as GenerateContentResponse;
+  }
+
+  /**
+   * Builds usageMetadata with fallback estimation. OpenAI-compat providers
+   * (DeepSeek, Ollama) sometimes omit or partially return `usage` data; this
+   * ensures `totalTokenCount` is always a positive number so downstream cost
+   * tracking has a reliable signal.
+   */
+  private computeUsageMetadata(
+    requestContents: Content[],
+    systemInstruction: unknown,
+    responseParts: Part[],
+    usage:
+      | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+      | undefined,
+  ): GenerateContentResponse['usageMetadata'] {
+    const reportedInput = usage?.prompt_tokens;
+    const reportedOutput = usage?.completion_tokens;
+
+    let promptTokenCount: number;
+    let candidatesTokenCount: number;
+
+    if (typeof reportedInput === 'number' && reportedInput >= 0) {
+      promptTokenCount = reportedInput;
+    } else {
+      // Fallback: estimate from request contents + system prompt
+      const promptParts: Part[] = requestContents.flatMap((c) => c.parts ?? []);
+      if (typeof systemInstruction === 'string' && systemInstruction.length > 0) {
+        promptParts.push({ text: systemInstruction });
+      } else if (
+        systemInstruction &&
+        typeof systemInstruction === 'object' &&
+        Array.isArray((systemInstruction as { parts?: Part[] }).parts)
+      ) {
+        promptParts.push(...((systemInstruction as { parts: Part[] }).parts));
+      }
+      promptTokenCount = Math.max(1, estimateTokenCountSync(promptParts));
+    }
+
+    if (typeof reportedOutput === 'number' && reportedOutput >= 0) {
+      candidatesTokenCount = reportedOutput;
+    } else {
+      candidatesTokenCount = Math.max(1, estimateTokenCountSync(responseParts));
+    }
+
+    return {
+      promptTokenCount,
+      candidatesTokenCount,
+      totalTokenCount: promptTokenCount + candidatesTokenCount,
+    };
   }
 
   async generateContentStream(

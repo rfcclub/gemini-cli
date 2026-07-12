@@ -17,12 +17,38 @@ import type { ProviderConfig } from '../services/providerRegistry.js';
 import type { LlmRole } from '../telemetry/llmRole.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { ProviderFactory } from './providerFactory.js';
+import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 
 /**
  * Adapter for Anthropic's Messages API (Claude).
  */
 export class AnthropicProvider implements LlmProvider {
   constructor(private readonly config: ProviderConfig) {}
+
+  /**
+   * Converts Gemini's systemInstruction shape (string | Content | undefined)
+   * into a plain string suitable for Anthropic's top-level `system` field.
+   * Returns undefined when there is no usable text so the caller can omit
+   * the field entirely (Anthropic rejects empty strings).
+   */
+  private extractSystemText(systemInstruction: unknown): string | undefined {
+    if (!systemInstruction) return undefined;
+    if (typeof systemInstruction === 'string') {
+      const trimmed = systemInstruction.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+    if (typeof systemInstruction === 'object') {
+      const parts = (systemInstruction as { parts?: Part[] }).parts;
+      if (Array.isArray(parts)) {
+        const text = parts
+          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+          .join('')
+          .trim();
+        return text.length > 0 ? text : undefined;
+      }
+    }
+    return undefined;
+  }
 
   async generateContent(
     request: GenerateContentParameters,
@@ -40,6 +66,7 @@ export class AnthropicProvider implements LlmProvider {
     const model = ProviderFactory.stripPrefix(rawModel);
 
     const contents = request.contents as Content[];
+    const systemText = this.extractSystemText(request.config?.systemInstruction);
 
     // Map Gemini request to Anthropic request
     const messages = contents.map((content) => ({
@@ -73,6 +100,10 @@ export class AnthropicProvider implements LlmProvider {
       max_tokens: 4096,
       stream: false,
     };
+
+    if (systemText !== undefined) {
+      body.system = systemText;
+    }
 
     if (tools && tools.length > 0) {
       body.tools = tools;
@@ -126,12 +157,53 @@ export class AnthropicProvider implements LlmProvider {
         },
       ],
       functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
-      usageMetadata: {
-        promptTokenCount: result.usage?.input_tokens,
-        candidatesTokenCount: result.usage?.output_tokens,
-        totalTokenCount: (result.usage?.input_tokens || 0) + (result.usage?.output_tokens || 0),
-      },
+      usageMetadata: this.computeUsageMetadata(
+        contents,
+        systemText,
+        parts,
+        result.usage,
+      ),
     } as GenerateContentResponse;
+  }
+
+  /**
+   * Builds usageMetadata with fallback estimation when the provider omits or
+   * partially returns usage. Guarantees `totalTokenCount` is a positive number.
+   */
+  private computeUsageMetadata(
+    requestContents: Content[],
+    systemText: string | undefined,
+    responseParts: Part[],
+    usage: { input_tokens?: number; output_tokens?: number } | undefined,
+  ): GenerateContentResponse['usageMetadata'] {
+    const reportedInput = usage?.input_tokens;
+    const reportedOutput = usage?.output_tokens;
+
+    let promptTokenCount: number;
+    let candidatesTokenCount: number;
+
+    if (typeof reportedInput === 'number' && reportedInput >= 0) {
+      promptTokenCount = reportedInput;
+    } else {
+      // Fallback: estimate from request contents + system prompt
+      const promptParts: Part[] = requestContents.flatMap((c) => c.parts ?? []);
+      if (systemText) {
+        promptParts.push({ text: systemText });
+      }
+      promptTokenCount = Math.max(1, estimateTokenCountSync(promptParts));
+    }
+
+    if (typeof reportedOutput === 'number' && reportedOutput >= 0) {
+      candidatesTokenCount = reportedOutput;
+    } else {
+      candidatesTokenCount = Math.max(1, estimateTokenCountSync(responseParts));
+    }
+
+    return {
+      promptTokenCount,
+      candidatesTokenCount,
+      totalTokenCount: promptTokenCount + candidatesTokenCount,
+    };
   }
 
   async generateContentStream(
@@ -149,6 +221,7 @@ export class AnthropicProvider implements LlmProvider {
 
     const model = ProviderFactory.stripPrefix(rawModel);
     const contents = request.contents as Content[];
+    const systemText = this.extractSystemText(request.config?.systemInstruction);
 
     // Map Gemini request to Anthropic request
     const messages = contents.map((content) => ({
@@ -182,6 +255,10 @@ export class AnthropicProvider implements LlmProvider {
       max_tokens: 4096,
       stream: true,
     };
+
+    if (systemText !== undefined) {
+      body.system = systemText;
+    }
 
     if (tools && tools.length > 0) {
       body.tools = tools;
