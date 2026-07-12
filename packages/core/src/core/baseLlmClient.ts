@@ -342,12 +342,27 @@ export class BaseLlmClient {
           ...additionalProperties,
           abortSignal,
         };
+        // If the resolved model has no provider prefix (e.g. bare Gemini model
+        // names like 'gemini-3.1-flash-lite' from internal aliases), check if
+        // the user has a non-Gemini active model with a registered provider.
+        // This redirects internal utility calls (summarizer, fast-ack, etc.)
+        // to the user's chosen provider instead of silently falling back to
+        // the Gemini SDK.
+        let effectiveModel = currentModel;
+        const hasProvider = ProviderFactory.getProvider(currentModel) !== undefined;
+        if (!hasProvider) {
+          const activeModel = this.config.getActiveModel();
+          if (activeModel && ProviderFactory.getProvider(activeModel) !== undefined) {
+            effectiveModel = activeModel;
+          }
+        }
+
         const requestParams: GenerateContentParameters = {
-          model: currentModel,
+          model: effectiveModel,
           config: finalConfig,
           contents,
         };
-        const provider = ProviderFactory.getProvider(currentModel);
+        const provider = ProviderFactory.getProvider(effectiveModel);
         if (provider) {
           return provider.generateContent(
             requestParams,

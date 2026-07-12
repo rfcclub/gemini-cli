@@ -121,8 +121,10 @@ export class CrossProviderFallbackChain {
       );
     }
 
-    // Priority 3: Default fallback chain
-    return ['gemini-2.5-flash', 'gemini-2.5-pro'];
+    // Priority 3: No hardcoded defaults — if no providers.yaml and no env var,
+    // there is nothing to fall back to. Returning empty means the original
+    // error propagates instead of silently trying Gemini without an API key.
+    return [];
   }
 
   private extractProvider(model: string): string {

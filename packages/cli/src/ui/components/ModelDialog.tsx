@@ -47,9 +47,13 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
   const [hasAccessToProModel, setHasAccessToProModel] = useState<boolean>(
     () => !(config?.getProModelNoAccessSync() ?? false),
   );
-  const [view, setView] = useState<'main' | 'manual'>(() =>
-    config?.getProModelNoAccessSync() ? 'manual' : 'main',
-  );
+  const [view, setView] = useState<'main' | 'manual'>(() => {
+    // Vesta dynamic config: skip the "Manual" indirection — go straight to model list
+    if (config?.getExperimentalDynamicModelConfiguration?.() === true) {
+      return 'manual';
+    }
+    return config?.getProModelNoAccessSync() ? 'manual' : 'main';
+  });
   const [persistMode, setPersistMode] = useState(false);
 
   useEffect(() => {

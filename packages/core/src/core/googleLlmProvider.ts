@@ -33,7 +33,11 @@ export class GoogleLlmProvider implements LlmProvider {
     _userPromptId: string,
     _role: LlmRole,
   ): Promise<GenerateContentResponse> {
-    const modelId = ProviderFactory.stripPrefix(request.model || this.config.defaultModel || 'gemini-1.5-flash');
+    const model = request.model || this.config.defaultModel;
+    if (!model) {
+      throw new Error('No model specified for GoogleLlmProvider');
+    }
+    const modelId = ProviderFactory.stripPrefix(model);
     const result = await this.client.models.generateContent({
         model: modelId,
         contents: request.contents as any,
