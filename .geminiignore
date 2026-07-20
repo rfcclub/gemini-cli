@@ -1,1 +1,2 @@
 packages/core/src/services/scripts/*.exe
+.gemini-vesta/**

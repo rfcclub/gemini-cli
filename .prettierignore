@@ -7,6 +7,7 @@
 .DS_Store
 .env
 .gemini/
+.gemini-vesta/
 .idea
 .integration-tests/
 *.iml
