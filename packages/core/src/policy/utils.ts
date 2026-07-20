@@ -12,6 +12,17 @@ export function escapeRegex(text: string): string {
 }
 
 /**
+ * Checks if a regular expression pattern is a pure literal match (contains no active regex meta-characters).
+ */
+export function isLiteralRegExp(pattern: string): boolean {
+  // Replace all escaped characters (e.g. \*, \+, \(, \\, etc.) with a dummy character
+  const unescaped = pattern.replace(/\\./g, 'X');
+  // Check if any active regex meta-characters remain
+  const activeRegexChars = /[.*+?^${}()|[\]]/;
+  return !activeRegexChars.test(unescaped);
+}
+
+/**
  * Basic validation for regular expressions to prevent common ReDoS patterns.
  * This is a heuristic check and not a substitute for a full ReDoS scanner.
  */
@@ -23,8 +34,11 @@ export function isSafeRegExp(pattern: string): boolean {
     return false;
   }
 
-  // 2. Limit length to prevent extremely long regexes
-  if (pattern.length > 2048) {
+  // 2. Limit length to prevent extremely long regexes.
+  // We allow longer patterns (up to 32KB) for safe literal matches.
+  const isLiteral = isLiteralRegExp(pattern);
+  const maxLength = isLiteral ? 32768 : 2048;
+  if (pattern.length > maxLength) {
     return false;
   }
 

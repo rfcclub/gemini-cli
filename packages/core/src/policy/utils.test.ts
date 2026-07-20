@@ -5,7 +5,12 @@
  */
 
 import { expect, describe, it } from 'vitest';
-import { escapeRegex, buildArgsPatterns, isSafeRegExp } from './utils.js';
+import {
+  escapeRegex,
+  buildArgsPatterns,
+  isSafeRegExp,
+  isLiteralRegExp,
+} from './utils.js';
 
 describe('policy/utils', () => {
   describe('escapeRegex', () => {
@@ -20,6 +25,22 @@ describe('policy/utils', () => {
     it('should return the same string if no special characters are present', () => {
       const input = 'abcABC123';
       expect(escapeRegex(input)).toBe(input);
+    });
+  });
+
+  describe('isLiteralRegExp', () => {
+    it('should return true for literal matching patterns', () => {
+      expect(isLiteralRegExp('abc')).toBe(true);
+      expect(isLiteralRegExp('abc\\.txt')).toBe(true);
+      expect(isLiteralRegExp('\\0"file_path":"abc"\\0')).toBe(true);
+    });
+
+    it('should return false for patterns containing active regex operators', () => {
+      expect(isLiteralRegExp('a|b')).toBe(false);
+      expect(isLiteralRegExp('a+')).toBe(false);
+      expect(isLiteralRegExp('(abc)')).toBe(false);
+      expect(isLiteralRegExp('a*')).toBe(false);
+      expect(isLiteralRegExp('.*')).toBe(false);
     });
   });
 
@@ -48,8 +69,13 @@ describe('policy/utils', () => {
       expect(isSafeRegExp('*')).toBe(false);
     });
 
-    it('should return false for long regexes', () => {
-      expect(isSafeRegExp('a'.repeat(3000))).toBe(false);
+    it('should distinguish limits for literal vs non-literal regexes', () => {
+      // Literal pattern <= 32KB should be true
+      expect(isSafeRegExp('a'.repeat(3000))).toBe(true);
+      // Literal pattern > 32KB should be false
+      expect(isSafeRegExp('a'.repeat(35000))).toBe(false);
+      // Non-literal pattern > 2048 should be false
+      expect(isSafeRegExp('a*'.repeat(1500))).toBe(false);
     });
 
     it('should return false for nested quantifiers (ReDoS heuristic)', () => {

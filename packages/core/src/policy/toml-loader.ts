@@ -518,7 +518,10 @@ export async function loadPoliciesFromToml(
                     return null;
                   }
 
-                  if (!isSafeRegExp(argsPattern)) {
+                  // Patterns derived from commandPrefix are safe by construction
+                  // (fully escaped by escapeRegex). Only user-supplied argsPattern
+                  // and commandRegex values need the ReDoS safety check.
+                  if (!rule.commandPrefix && !isSafeRegExp(argsPattern)) {
                     errors.push({
                       filePath,
                       fileName: file,
@@ -641,7 +644,10 @@ export async function loadPoliciesFromToml(
                     return null;
                   }
 
-                  if (!isSafeRegExp(argsPattern)) {
+                  // Patterns derived from commandPrefix are safe by construction
+                  // (fully escaped by escapeRegex). Only user-supplied argsPattern
+                  // and commandRegex values need the ReDoS safety check.
+                  if (!checker.commandPrefix && !isSafeRegExp(argsPattern)) {
                     errors.push({
                       filePath,
                       fileName: file,

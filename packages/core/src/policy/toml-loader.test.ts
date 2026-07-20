@@ -429,6 +429,40 @@ priority = 100
       expect(result.errors).toHaveLength(0);
     });
 
+    it('should NOT flag commandPrefix containing TypeScript/complex code as unsafe ReDoS', async () => {
+      // Regression test: commandPrefix values that contain parentheses, asterisks,
+      // or braces (e.g. from shell heredocs or complex commands) were previously
+      // false-positived as "Unsafe regex pattern" because the escaped literal pattern
+      // incidentally triggered the nested-quantifier heuristic in isSafeRegExp.
+      // Patterns built from commandPrefix are safe by construction (fully escaped
+      // by escapeRegex) and must never be rejected by the ReDoS check.
+      const complexPrefix = `cat > /tmp/test.ts << 'TEST_EOF'\nimport { describe, it } from 'vitest';\ndescribe('foo', () => { it('bar', async () => { expect(Promise.resolve(1)).resolves.toBe(1); }); });\nTEST_EOF`;
+      const result = await runLoadPoliciesFromToml(`
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ${JSON.stringify(complexPrefix)}
+decision = "allow"
+priority = 100
+`);
+
+      expect(result.rules).toHaveLength(1);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should NOT flag commandPrefix exceeding 2048 characters as unsafe ReDoS', async () => {
+      const longPrefix = 'a'.repeat(3000);
+      const result = await runLoadPoliciesFromToml(`
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ${JSON.stringify(longPrefix)}
+decision = "allow"
+priority = 100
+`);
+
+      expect(result.rules).toHaveLength(1);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it('should handle a mix of valid and invalid policy files', async () => {
       await fs.writeFile(
         path.join(tempDir, 'valid.toml'),
