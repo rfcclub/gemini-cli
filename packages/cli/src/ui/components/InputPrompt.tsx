@@ -261,7 +261,7 @@ const InputLine = memo(
         logicalLineIdx,
         transformations,
         cursorOnThisLine,
-        cursorOnThisLine ? cursorPosition[1] : -1,
+        cursorPosition,
       ],
     );
 
@@ -1698,6 +1698,7 @@ export const InputPrompt: React.FC<InputPromptProps> = memo(
         isHelpDismissKey,
         settings,
         handleVoiceInput,
+        config,
       ],
     );
     useKeypress(handleInput, {
