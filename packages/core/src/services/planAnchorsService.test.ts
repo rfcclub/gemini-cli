@@ -23,8 +23,8 @@ describe('PlanAnchorsService', () => {
       const plan = PlanAnchorsService.extractPlan(history);
       expect(plan).not.toBeNull();
       expect(plan!.tasks).toHaveLength(3);
-      expect(plan!.tasks[0]!.completed).toBe(true);
-      expect(plan!.tasks[1]!.completed).toBe(false);
+      expect(plan!.tasks[0].completed).toBe(true);
+      expect(plan!.tasks[1].completed).toBe(false);
       expect(plan!.currentStepIndex).toBe(1);
     });
 
@@ -37,9 +37,9 @@ describe('PlanAnchorsService', () => {
       const plan = PlanAnchorsService.extractPlan(history);
       expect(plan).not.toBeNull();
       expect(plan!.tasks).toHaveLength(3);
-      expect(plan!.tasks[0]!.description).toBe('Read the file');
-      expect(plan!.tasks[1]!.description).toBe('Edit the code');
-      expect(plan!.tasks[2]!.description).toBe('Run tests');
+      expect(plan!.tasks[0].description).toBe('Read the file');
+      expect(plan!.tasks[1].description).toBe('Edit the code');
+      expect(plan!.tasks[2].description).toBe('Run tests');
       expect(plan!.currentStepIndex).toBe(0);
     });
 
@@ -52,8 +52,8 @@ describe('PlanAnchorsService', () => {
       const plan = PlanAnchorsService.extractPlan(history);
       expect(plan).not.toBeNull();
       expect(plan!.tasks).toHaveLength(3);
-      expect(plan!.tasks[0]!.completed).toBe(true);
-      expect(plan!.tasks[1]!.completed).toBe(false);
+      expect(plan!.tasks[0].completed).toBe(true);
+      expect(plan!.tasks[1].completed).toBe(false);
     });
 
     it('should find the most recent plan in history', () => {
@@ -65,7 +65,7 @@ describe('PlanAnchorsService', () => {
       const plan = PlanAnchorsService.extractPlan(history);
       expect(plan).not.toBeNull();
       expect(plan!.tasks).toHaveLength(2);
-      expect(plan!.tasks[0]!.description).toBe('New step 1');
+      expect(plan!.tasks[0].description).toBe('New step 1');
     });
 
     it('should return null when no plan is found', () => {

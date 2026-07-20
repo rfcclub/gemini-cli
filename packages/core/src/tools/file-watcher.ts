@@ -51,6 +51,7 @@ class FileWatcherInvocation extends BaseToolInvocation<
         return 'Stop file watcher';
       case 'status':
         return 'Check file watcher status';
+      // no default
     }
   }
 
@@ -148,6 +149,7 @@ class FileWatcherInvocation extends BaseToolInvocation<
           returnDisplay: `Watching: ${watcherChanges.length} changes in ${elapsed}s`,
         };
       }
+      // no default
     }
   }
 }

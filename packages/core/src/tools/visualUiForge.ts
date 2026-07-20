@@ -232,11 +232,12 @@ Output ONLY the raw, complete source code of the modified file. Do not wrap the 
         },
         returnDisplay: 'Styled successfully',
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       return {
-        llmContent: `Failed to style target file: ${e.message}`,
+        llmContent: `Failed to style target file: ${msg}`,
         returnDisplay: 'Styling execution error.',
-        error: { message: e.message, type: ToolErrorType.EXECUTION_FAILED },
+        error: { message: msg, type: ToolErrorType.EXECUTION_FAILED },
       };
     }
   }

@@ -63,6 +63,7 @@ export default tseslint.config(
       'evals/**',
       'packages/test-utils/**',
       '.gemini/**',
+      '.gemini-vesta/**',
       '**/*.d.ts',
     ],
   },

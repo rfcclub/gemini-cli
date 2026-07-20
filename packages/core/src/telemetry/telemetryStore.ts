@@ -103,13 +103,14 @@ export class TelemetryStore {
   /**
    * Retrieves the current session stats, defaulting if file doesn't exist.
    */
-  public getStats(): SessionStats {
+  getStats(): SessionStats {
     try {
       if (fs.existsSync(this.filepath)) {
         const content = fs.readFileSync(this.filepath, 'utf8');
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         return JSON.parse(content) as SessionStats;
       }
-    } catch (e) {
+    } catch {
       // Return default on read/parse failure
     }
 
@@ -128,7 +129,7 @@ export class TelemetryStore {
   /**
    * Records a new turn's API token usage into the cumulative stats.
    */
-  public recordEvent(
+  recordEvent(
     input: number,
     output: number,
     cached: number,
@@ -178,7 +179,7 @@ export class TelemetryStore {
 
     try {
       fs.writeFileSync(this.filepath, JSON.stringify(stats, null, 2), 'utf8');
-    } catch (e) {
+    } catch {
       // Ignore write errors
     }
   }
@@ -186,7 +187,7 @@ export class TelemetryStore {
   /**
    * Calculates estimated API cost vs actual cost, and total savings in USD.
    */
-  public calculateSavings(customStats?: SessionStats): {
+  calculateSavings(customStats?: SessionStats): {
     standardCostUsd: number;
     actualCostUsd: number;
     savingsUsd: number;
@@ -218,7 +219,7 @@ export class TelemetryStore {
   /**
    * Aggregates stats from all active/recent session telemetry files in os.tmpdir()
    */
-  public getCumulativeStats(): { stats: SessionStats; count: number } {
+  getCumulativeStats(): { stats: SessionStats; count: number } {
     const dir = os.tmpdir();
     const prefix = 'gemini-vesta-telemetry-';
     const suffix = '.json';
@@ -240,6 +241,7 @@ export class TelemetryStore {
           const filepath = path.join(dir, file);
           try {
             const content = fs.readFileSync(filepath, 'utf8');
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             const data = JSON.parse(content) as SessionStats;
             aggregated.inputTokens += data.inputTokens;
             aggregated.outputTokens += data.outputTokens;
@@ -250,12 +252,12 @@ export class TelemetryStore {
               aggregated.activeModel = data.activeModel;
             }
             filesCount++;
-          } catch (e) {
+          } catch {
             // Ignore single file parse errors
           }
         }
       }
-    } catch (e) {
+    } catch {
       // Ignore directory read errors
     }
 
@@ -265,12 +267,12 @@ export class TelemetryStore {
   /**
    * Deletes the session JSON telemetry file.
    */
-  public clear(): void {
+  clear(): void {
     try {
       if (fs.existsSync(this.filepath)) {
         fs.unlinkSync(this.filepath);
       }
-    } catch (e) {
+    } catch {
       // Ignore deletion errors
     }
   }

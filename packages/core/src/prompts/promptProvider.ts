@@ -40,6 +40,7 @@ import {
   getProjectMemoryIndexFilePath,
 } from '../tools/memoryTool.js';
 import type { AgentLoopContext } from '../config/agent-loop-context.js';
+import { type GeminiClient } from '../core/client.js';
 
 /**
  * Orchestrates prompt generation by gathering context and building options.
@@ -277,7 +278,7 @@ export class PromptProvider {
     let sanitizedPrompt = finalPrompt.replace(/\n{3,}/g, '\n\n');
 
     // Load Vesta Athanor files if they exist and inject into the prompt
-    let athanorPrompt = athanorWeaver.getAthanorContext();
+    const athanorPrompt = athanorWeaver.getAthanorContext();
 
     if (athanorPrompt) {
       // Add dynamic project context before the static athanor content
@@ -301,15 +302,19 @@ export class PromptProvider {
     }
 
     // Plan Anchors (Cognition Adapter)
-    const client =
+    const client: unknown =
       'geminiClient' in context
         ? context.geminiClient
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
         : typeof (context as any).getGeminiClient === 'function'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
           ? (context as any).getGeminiClient()
           : undefined;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    const geminiClient = client as GeminiClient | undefined;
     const history =
-      client && client.isInitialized()
-        ? client.getChat().getHistory(/*curated=*/true)
+      geminiClient && geminiClient.isInitialized()
+        ? geminiClient.getChat().getHistory(/*curated=*/true)
         : [];
     const planState = PlanAnchorsService.extractPlan(history);
     if (planState) {

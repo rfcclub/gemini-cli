@@ -37,3 +37,4 @@ export const App = memo(() => {
     </StreamingContext.Provider>
   );
 });
+App.displayName = 'App';

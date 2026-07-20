@@ -40,7 +40,9 @@ export class GoogleLlmProvider implements LlmProvider {
     const modelId = ProviderFactory.stripPrefix(model);
     const result = await this.client.models.generateContent({
         model: modelId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-unsafe-assignment
         contents: request.contents as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-unsafe-assignment
         config: request.config as any,
     });
 

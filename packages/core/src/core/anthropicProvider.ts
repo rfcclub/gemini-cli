@@ -52,8 +52,8 @@ export class AnthropicProvider implements LlmProvider {
 
   async generateContent(
     request: GenerateContentParameters,
-    userPromptId: string,
-    role: LlmRole,
+    _userPromptId: string,
+    _role: LlmRole,
   ): Promise<GenerateContentResponse> {
     const baseUrl = this.config.baseUrl || 'https://api.anthropic.com/v1';
     const apiKey = this.config.apiKey;
@@ -65,6 +65,7 @@ export class AnthropicProvider implements LlmProvider {
 
     const model = ProviderFactory.stripPrefix(rawModel);
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const contents = request.contents as Content[];
     const systemText = this.extractSystemText(request.config?.systemInstruction);
 
@@ -86,6 +87,7 @@ export class AnthropicProvider implements LlmProvider {
     }));
 
     // Map tools
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const tools = (request.config?.tools as Tool[] | undefined)?.flatMap((t) => 
       t.functionDeclarations?.map((f) => ({
         name: f.name,
@@ -94,6 +96,7 @@ export class AnthropicProvider implements LlmProvider {
       }))
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = {
       model,
       messages,
@@ -127,17 +130,25 @@ export class AnthropicProvider implements LlmProvider {
       throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const result = await response.json();
     
     const parts: Part[] = [];
     const functionCalls: FunctionCall[] = [];
+     
     for (const block of result.content) {
+       
       if (block.type === 'text') {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         parts.push({ text: block.text });
       } else if (block.type === 'tool_use') {
+         
         const fnCall = {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           name: block.name,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           args: block.input,
+           
         } as FunctionCall;
         parts.push({
           functionCall: fnCall,
@@ -146,6 +157,7 @@ export class AnthropicProvider implements LlmProvider {
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return {
       candidates: [
         {
@@ -153,6 +165,7 @@ export class AnthropicProvider implements LlmProvider {
             role: 'model',
             parts,
           },
+           
           finishReason: result.stop_reason === 'tool_use' ? 'STOP' : 'STOP',
         },
       ],
@@ -161,6 +174,7 @@ export class AnthropicProvider implements LlmProvider {
         contents,
         systemText,
         parts,
+         
         result.usage,
       ),
     } as GenerateContentResponse;
@@ -220,6 +234,7 @@ export class AnthropicProvider implements LlmProvider {
     }
 
     const model = ProviderFactory.stripPrefix(rawModel);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const contents = request.contents as Content[];
     const systemText = this.extractSystemText(request.config?.systemInstruction);
 
@@ -241,6 +256,7 @@ export class AnthropicProvider implements LlmProvider {
     }));
 
     // Map tools
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const tools = (request.config?.tools as Tool[] | undefined)?.flatMap((t) =>
       t.functionDeclarations?.map((f) => ({
         name: f.name,
@@ -249,6 +265,7 @@ export class AnthropicProvider implements LlmProvider {
       })),
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = {
       model,
       messages,
@@ -286,7 +303,11 @@ export class AnthropicProvider implements LlmProvider {
       throw new Error('No response body for Anthropic stream');
     }
 
-    const reader = response.body.getReader();
+    // Capture body reference before the generator so the finally block can
+    // cancel it — releaseLock() alone does not close the underlying TCP
+    // connection, which starves the connection pool after the first prompt.
+    const responseBody = response.body;
+    const reader = responseBody.getReader();
     const decoder = new TextDecoder();
 
     async function* streamGenerator(): AsyncGenerator<GenerateContentResponse> {
@@ -318,47 +339,66 @@ export class AnthropicProvider implements LlmProvider {
             if (trimmedLine.startsWith('data: ')) {
               const data = trimmedLine.substring(6);
               try {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 const result = JSON.parse(data);
 
                 const parts: Part[] = [];
-                let finishReason: any;
-                let usageMetadata: any;
+                let finishReason: 'STOP' | 'MAX_TOKENS' | 'SAFETY' | undefined;
+                let usageMetadata:
+                  | {
+                      promptTokenCount: number;
+                      candidatesTokenCount: number;
+                      totalTokenCount: number;
+                    }
+                  | undefined;
 
                 switch (result.type) {
                   case 'content_block_start':
+                     
                     if (result.content_block?.type === 'tool_use') {
                       toolCallMap.set(result.index, {
+                        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                         name: result.content_block.name,
                         arguments: '',
                       });
                     }
                     break;
                   case 'content_block_delta':
+                     
                     if (result.delta?.type === 'text_delta') {
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                       parts.push({ text: result.delta.text });
+                     
                     } else if (result.delta?.type === 'input_json_delta') {
+                       
                       const activeCall = toolCallMap.get(result.index);
                       if (activeCall) {
+                         
                         activeCall.arguments += result.delta.partial_json;
                       }
                     }
                     break;
                   case 'content_block_stop':
                     {
+                       
                       const activeCall = toolCallMap.get(result.index);
                       if (activeCall) {
                         parts.push({
                           functionCall: {
                             name: activeCall.name,
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                             args: activeCall.arguments ? JSON.parse(activeCall.arguments) : {},
                           } as FunctionCall,
                         });
+                         
                         toolCallMap.delete(result.index);
                       }
                     }
                     break;
                   case 'message_delta':
+                     
                     if (result.delta?.stop_reason) {
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                       const reason = result.delta.stop_reason;
                       if (reason === 'end_turn') finishReason = 'STOP';
                       else if (reason === 'max_tokens')
@@ -366,17 +406,23 @@ export class AnthropicProvider implements LlmProvider {
                       else if (reason === 'stop_sequence') finishReason = 'STOP';
                       else if (reason === 'tool_use') finishReason = 'STOP';
                     }
+                     
                     if (result.usage) {
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                       accumulatedOutputTokens = result.usage.output_tokens;
                     }
                     break;
                   case 'message_start':
+                     
                     if (result.message?.usage) {
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                       accumulatedPromptTokens = result.message.usage.input_tokens;
                     }
                     break;
                   case 'message_stop':
                     isDone = true;
+                    break;
+                  default:
                     break;
                 }
 
@@ -397,6 +443,7 @@ export class AnthropicProvider implements LlmProvider {
                   .map((p) => p.functionCall!);
 
                 if (parts.length > 0 || finishReason || usageMetadata) {
+                  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
                   yield {
                     candidates: [
                       {
@@ -419,6 +466,14 @@ export class AnthropicProvider implements LlmProvider {
         }
       } finally {
         reader.releaseLock();
+        // Cancel the response body to return the HTTP connection to the pool.
+        // Without this, an abandoned async generator holds the connection open
+        // until the server closes it, starving the pool on subsequent requests.
+        try {
+          await responseBody.cancel();
+        } catch {
+          // Ignore: stream may already be fully consumed or closed.
+        }
       }
     }
 

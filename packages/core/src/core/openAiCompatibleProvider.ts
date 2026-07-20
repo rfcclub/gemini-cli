@@ -4,6 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * File-level eslint-disable for unsafe rules in this adapter:
+ *
+ * The OpenAI-compatible wire format includes provider-specific extensions
+ * (reasoning_content, reasoning_effort, reasoning_split, custom finish_reason
+ * values, MiniMax-specific schema) and stream chunk shapes that are not
+ * modeled in `@google/genai`. Per-line suppressions for every JSON.parse()
+ * boundary and every message/tool_calls property access would defeat the
+ * intent of these rules. Use `unknown` plus type guards only when adding
+ * new code paths.
+ */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-explicit-any */
+
 import type {
   GenerateContentResponse,
   GenerateContentParameters,
@@ -30,7 +43,9 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     return ProviderFactory.stripPrefix(modelId);
   }
 
+   
   private mapMessages(contents: Content[], systemInstruction?: any): any[] {
+     
     const messages: any[] = [];
 
     if (systemInstruction) {
@@ -39,7 +54,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         content:
           typeof systemInstruction === 'string'
             ? systemInstruction
-            : systemInstruction.parts?.map((p: any) => p.text).join('') ?? '',
+            : systemInstruction.parts?.map((p: Part) => p.text ?? '').join('') ?? '',
       });
     }
 
@@ -80,6 +95,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall!);
 
         if (role === 'assistant') {
+           
           const assistantMessage: any = {
             role: 'assistant',
             content: textParts || null,
@@ -99,7 +115,9 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 type: 'function',
                 function: {
                   name: callName,
-                  arguments: JSON.stringify(call.args),
+                  // Ensure args is always a valid JSON string; Gemini allows undefined
+                  // for zero-arg functions but OpenAI APIs require a JSON object string.
+                  arguments: JSON.stringify(call.args ?? {}),
                 },
               };
             });
@@ -121,9 +139,11 @@ export class OpenAiCompatibleProvider implements LlmProvider {
    * Recursively normalizes parameter schemas for OpenAI compatibility.
    * Converts types to lowercase and handles differences in format.
    */
+   
   private normalizeSchema(schema: any): any {
     if (!schema || typeof schema !== 'object') return schema;
 
+     
     const normalized: any = { ...schema };
 
     if (typeof normalized.type === 'string') {
@@ -131,6 +151,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     }
 
     if (normalized.properties) {
+       
       const newProperties: any = {};
       for (const [key, value] of Object.entries(normalized.properties)) {
         newProperties[key] = this.normalizeSchema(value);
@@ -149,6 +170,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     const tools = requestTools?.flatMap((t) =>
       t.functionDeclarations?.map((f) => {
         // Use either parameters or parametersJsonSchema (legacy)
+         
         const rawParameters = f.parameters || (f as any).parametersJsonSchema;
         const normalizedParameters = rawParameters 
           ? this.normalizeSchema(rawParameters)
@@ -171,11 +193,14 @@ export class OpenAiCompatibleProvider implements LlmProvider {
   private createRequestBody(
     request: GenerateContentParameters,
     model: string,
+     
     messages: any[],
     stream: boolean,
+     
   ): any {
     const tools = this.mapTools(request.config?.tools as Tool[] | undefined);
 
+     
     const body: any = {
       model,
       messages,
@@ -189,6 +214,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           : undefined,
       presence_penalty: request.config?.presencePenalty,
       frequency_penalty: request.config?.frequencyPenalty,
+       
       reasoning_effort: (request.config as any)?.reasoningEffort,
       ...(tools && { tools }),
     };
@@ -259,6 +285,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       parts.push({
         text: message.reasoning_content,
         thought: true,
+         
       } as any);
     }
 
@@ -391,7 +418,11 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       throw new Error('No response body for OpenAI-compatible stream');
     }
 
-    const reader = response.body.getReader();
+    // Capture body reference before the generator so the finally block can
+    // cancel it — releaseLock() alone does not close the underlying TCP
+    // connection, which starves the connection pool after the first prompt.
+    const responseBody = response.body;
+    const reader = responseBody.getReader();
     const decoder = new TextDecoder();
 
     async function* streamGenerator(): AsyncGenerator<GenerateContentResponse> {
@@ -439,6 +470,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 parts.push({
                   text: delta.reasoning_content,
                   thought: true,
+                   
                 } as any);
               }
 
@@ -459,6 +491,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                 }
               }
 
+               
               let mappedFinishReason: any;
               if (finishReason === 'stop') mappedFinishReason = 'STOP';
               else if (finishReason === 'length')
@@ -466,6 +499,10 @@ export class OpenAiCompatibleProvider implements LlmProvider {
               else if (finishReason === 'content_filter')
                 mappedFinishReason = 'SAFETY';
               else if (finishReason === 'tool_calls')
+                mappedFinishReason = 'STOP';
+              else if (finishReason)
+                // Catch-all: non-standard finish_reason values from Ollama/custom
+                // providers (e.g. 'eos', 'end_turn') should be treated as STOP.
                 mappedFinishReason = 'STOP';
 
               const chunkFunctionCalls: FunctionCall[] = [];
@@ -506,7 +543,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
                     : undefined,
                 } as GenerateContentResponse;
               }
-            } catch (e) {
+            } catch {
               // Ignore JSON parse errors for incomplete chunks
             }
           }
@@ -540,8 +577,31 @@ export class OpenAiCompatibleProvider implements LlmProvider {
             functionCalls: chunkFunctionCalls.length > 0 ? chunkFunctionCalls : undefined,
           } as GenerateContentResponse;
         }
+        // If the stream ended via TCP close (done=true) without a [DONE] sentinel
+        // and no pending tool calls, emit a synthetic STOP so geminiChat does not
+        // throw NO_FINISH_REASON and surface an error to the user.
+        if (!isDone && toolCallMap.size === 0) {
+           
+          yield ({
+            candidates: [
+              {
+                content: { role: 'model', parts: [] },
+                finishReason: 'STOP',
+              },
+            ],
+          } as unknown) as GenerateContentResponse;
+        }
       } finally {
         reader.releaseLock();
+        // Cancel the response body to return the HTTP connection to the pool.
+        // Without this, an abandoned async generator (early break, thrown error)
+        // holds the connection open until the server closes it, starving the
+        // pool and preventing subsequent requests from connecting.
+        try {
+          await responseBody.cancel();
+        } catch {
+          // Ignore: stream may already be fully consumed or closed.
+        }
       }
     }
 

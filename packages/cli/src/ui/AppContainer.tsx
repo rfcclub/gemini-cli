@@ -1361,14 +1361,16 @@ Logging in with Google... Restarting Gemini CLI to continue.
       if (!trimmed) {
         return;
       }
-      config.injectionService.addInjection(trimmed, "user_steering");
+      config.injectionService.addInjection(trimmed, 'user_steering');
       historyManager.addItem({
-        type: "hint",
+        type: 'hint',
         text: trimmed,
       });
 
       const steeringModel = settings.merged.experimental?.steeringModel;
-      const modelConfigKey = steeringModel ? { model: steeringModel } : undefined;
+      const modelConfigKey = steeringModel
+        ? { model: steeringModel }
+        : undefined;
 
       try {
         const ack = await generateSteeringAckMessage(
@@ -1378,11 +1380,13 @@ Logging in with Google... Restarting Gemini CLI to continue.
         );
         if (ack) {
           historyManager.addItem({
-            type: "gemini",
+            type: 'gemini',
             text: ack,
           });
         }
-      } catch (e) {}
+      } catch {
+        /* ignore */
+      }
     },
     [config, historyManager, settings],
   );
@@ -1418,7 +1422,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
       }
 
       if (config.isModelSteeringEnabled() && isAgentRunning && !isSlash) {
-        handleHintSubmit(submittedValue);
+        void handleHintSubmit(submittedValue);
         addInput(submittedValue);
         return;
       }

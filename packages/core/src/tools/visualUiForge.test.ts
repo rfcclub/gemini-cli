@@ -13,34 +13,26 @@ import type { Config } from '../config/config.js';
 import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
 // Mock HybridTokenStorage to prevent circular dependency resolution failures in Vitest
-vi.mock('../mcp/token-storage/hybrid-token-storage.js', () => {
-  return {
-    HybridTokenStorage: vi.fn().mockImplementation(() => {
-      return {
+vi.mock('../mcp/token-storage/hybrid-token-storage.js', () => ({
+    HybridTokenStorage: vi.fn().mockImplementation(() => ({
         getCredentials: vi.fn(),
         setCredentials: vi.fn(),
         deleteCredentials: vi.fn(),
-      };
-    }),
-  };
-});
+      })),
+  }));
 
 // Mock the GenAI SDK
 const mockGenerateContent = vi.fn().mockResolvedValue({
   text: '  const [count, setCount] = useState(0);\n  let x = 100;',
 });
 
-vi.mock('@google/genai', () => {
-  return {
-    GoogleGenAI: vi.fn().mockImplementation(() => {
-      return {
+vi.mock('@google/genai', () => ({
+    GoogleGenAI: vi.fn().mockImplementation(() => ({
         models: {
           generateContent: mockGenerateContent,
         },
-      };
-    }),
-  };
-});
+      })),
+  }));
 
 describe('VisualUiForgeTool', () => {
   let tempDir: string;
@@ -80,12 +72,15 @@ describe('VisualUiForgeTool', () => {
     expect(tool.name).toBe('visual_ui_forge');
 
     const schema = tool.getSchema();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((schema.parametersJsonSchema as any)?.required).toContain('mockupPath');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((schema.parametersJsonSchema as any)?.required).toContain('targetFilePath');
   });
 
   it('should successfully update component styling and return a patch', async () => {
     const tool = new VisualUiForgeTool(mockConfig, mockMessageBus);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invocation = (tool as any).createInvocation(
       {
         mockupPath: 'mockup.png',
@@ -94,6 +89,7 @@ describe('VisualUiForgeTool', () => {
       mockMessageBus,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await invocation.execute({} as any);
     expect(result.error).toBeUndefined();
     expect(result.returnDisplay).toBe('Styled successfully');
@@ -110,6 +106,7 @@ describe('VisualUiForgeTool', () => {
     });
 
     const tool = new VisualUiForgeTool(mockConfig, mockMessageBus);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invocation = (tool as any).createInvocation(
       {
         mockupPath: 'mockup.png',
@@ -118,6 +115,7 @@ describe('VisualUiForgeTool', () => {
       mockMessageBus,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await invocation.execute({} as any);
     expect(result.error).toBeDefined();
     expect(result.error?.message).toContain('React state/hook mismatch detected for useState');

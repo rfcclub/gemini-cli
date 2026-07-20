@@ -8,7 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CacheManager } from './cacheManager.js';
 
 describe('CacheManager', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockAi: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCaches: any;
 
   beforeEach(() => {

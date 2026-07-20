@@ -50,6 +50,7 @@ class GitWorktreeInvocation extends BaseToolInvocation<
         return `Add git worktree at ${this.params.path || '?'}`;
       case 'remove':
         return `Remove git worktree at ${this.params.path || '?'}`;
+      // no default
     }
   }
 
@@ -130,6 +131,7 @@ class GitWorktreeInvocation extends BaseToolInvocation<
             returnDisplay: `Worktree removed: ${this.params.path}`,
           };
         }
+        // no default
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

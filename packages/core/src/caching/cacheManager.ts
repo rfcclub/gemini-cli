@@ -15,27 +15,32 @@ import type { Content } from '@google/genai';
  * - Content hash tracking for smart invalidation
  */
 export class CacheManager {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private ai?: any;
   private activeCacheName?: string;
   private activeCacheModel?: string;
   private cacheHits = 0;
   private cacheMisses = 0;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(googleGenAI?: any) {
     if (googleGenAI) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       this.ai = googleGenAI;
     }
   }
 
-  public setAiClient(googleGenAI: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setAiClient(googleGenAI: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     this.ai = googleGenAI;
   }
 
-  public hasAiClient(): boolean {
+  hasAiClient(): boolean {
     return this.ai !== undefined && this.ai.caches !== undefined;
   }
 
-  public async createCache(
+  async createCache(
     model: string,
     contents: Content[],
     ttlSeconds: number = 600,
@@ -43,6 +48,7 @@ export class CacheManager {
     if (!this.hasAiClient()) {
       return undefined;
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const response = await this.ai.caches.create({
       model,
       config: {
@@ -51,23 +57,25 @@ export class CacheManager {
         displayName: `vesta_caching_${Date.now()}`,
       },
     });
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     this.activeCacheName = response.name;
     this.activeCacheModel = model;
     this.cacheMisses++;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return response.name;
   }
 
   /**
    * Records a cache hit (called when cachedContent is used in a request).
    */
-  public recordCacheHit(): void {
+  recordCacheHit(): void {
     this.cacheHits++;
   }
 
   /**
    * Gets cache statistics for telemetry.
    */
-  public getCacheStats(): { hits: number; misses: number; active: boolean } {
+  getCacheStats(): { hits: number; misses: number; active: boolean } {
     return {
       hits: this.cacheHits,
       misses: this.cacheMisses,
@@ -75,26 +83,26 @@ export class CacheManager {
     };
   }
 
-  public getActiveCacheName(): string | undefined {
+  getActiveCacheName(): string | undefined {
     return this.activeCacheName;
   }
 
-  public getActiveCacheModel(): string | undefined {
+  getActiveCacheModel(): string | undefined {
     return this.activeCacheModel;
   }
 
-  public async deleteActiveCache(): Promise<void> {
+  async deleteActiveCache(): Promise<void> {
     if (this.hasAiClient() && this.activeCacheName) {
       try {
         await this.ai.caches.delete({ name: this.activeCacheName });
-      } catch (e) {
+      } catch {
         // Ignore deletion errors
       }
       this.activeCacheName = undefined;
     }
   }
 
-  public async renewActiveCacheTTL(ttlSeconds: number = 600): Promise<void> {
+  async renewActiveCacheTTL(ttlSeconds: number = 600): Promise<void> {
     if (this.hasAiClient() && this.activeCacheName) {
       try {
         await this.ai.caches.update({
@@ -103,7 +111,7 @@ export class CacheManager {
             ttl: `${ttlSeconds}s`,
           },
         });
-      } catch (e) {
+      } catch {
         // Ignore update errors
       }
     }

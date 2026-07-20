@@ -150,7 +150,8 @@ export function estimateContextBreakdown(
 }
 
 export class LoggingContentGenerator implements ContentGenerator {
-  public googleGenAI?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  googleGenAI?: any;
   private cacheManager?: CacheManager;
   private telemetryStore = new TelemetryStore();
   private lastCacheHash?: string;
@@ -674,10 +675,13 @@ export class LoggingContentGenerator implements ContentGenerator {
         systemPromptText = systemPrompt;
       } else if (typeof systemPrompt === 'object') {
         if ('parts' in systemPrompt && Array.isArray(systemPrompt.parts)) {
+           
           systemPromptText = systemPrompt.parts
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return
             .map((p: any) => p.text || '')
             .join('\n');
         } else if ('text' in systemPrompt) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-unsafe-assignment
           systemPromptText = (systemPrompt as any).text || '';
         }
       }

@@ -36,5 +36,6 @@ export interface LlmProvider {
   /**
    * (Optional) Returns the raw underlying client if needed for specific operations.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly rawClient?: any;
 }

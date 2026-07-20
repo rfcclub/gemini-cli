@@ -10,15 +10,13 @@ import { interpolateColor } from '../themes/color-utils.js';
 import { debugState } from '../debug.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 
-const isTestEnv = () => {
-  return (
-    typeof globalThis !== 'undefined' &&
-    ((globalThis as any).vitest !== undefined ||
-      (globalThis as any).vi !== undefined ||
-      process.env['VITEST'] !== undefined ||
-      process.env['NODE_ENV'] === 'test')
-  );
-};
+const isTestEnv = () =>
+  typeof globalThis !== 'undefined' && // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-explicit-any
+  ((globalThis as any).vitest !== undefined ||
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-explicit-any
+    (globalThis as any).vi !== undefined ||
+    process.env['VITEST'] !== undefined ||
+    process.env['NODE_ENV'] === 'test');
 
 export function useAnimatedScrollbar(
   isFocused: boolean,

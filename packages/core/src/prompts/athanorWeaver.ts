@@ -20,7 +20,7 @@ export class AthanorWeaver {
    * Resolves the directory path for Athanor.
    * Prioritizes VESTA_ATHANOR_DIR environment variable, falls back to common locations.
    */
-  public getAthanorDir(): string | undefined {
+  getAthanorDir(): string | undefined {
     const envDir =
       process.env['VESTA_ATHANOR_DIR'] || process.env['ATHANOR_DIR'];
     if (envDir) {
@@ -47,7 +47,7 @@ export class AthanorWeaver {
   /**
    * Forces a refresh of the cached content on the next read.
    */
-  public refresh(): void {
+  refresh(): void {
     this.cachedContent = null;
   }
 
@@ -55,7 +55,7 @@ export class AthanorWeaver {
    * Generates dynamic context about the current project environment.
    * Includes project name, working directory, and git branch if available.
    */
-  public getDynamicContext(): string {
+  getDynamicContext(): string {
     const cwd = process.cwd();
     const projectName = path.basename(cwd);
     const parts: string[] = [];
@@ -103,7 +103,7 @@ export class AthanorWeaver {
    * Retrieves the Athanor context, reading from disk if not cached.
    * It looks for specific core files (BOOT.md, AXIOMS.md).
    */
-  public getAthanorContext(): string {
+  getAthanorContext(): string {
     if (this.cachedContent !== null) {
       return this.cachedContent;
     }
@@ -138,7 +138,7 @@ export class AthanorWeaver {
           }
           const content = fs.readFileSync(filePath, 'utf-8');
           combinedContent += `## ${fileObj.title}\n\n${content}\n\n`;
-        } catch (e) {
+        } catch {
           // Fail silently but safely
         }
       }

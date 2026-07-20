@@ -15,7 +15,8 @@ export class ResilientBlockMatcher {
    * 1. Strips leading and trailing whitespace.
    * 2. Replaces all internal runs of whitespace (spaces, tabs) with a single space.
    */
-  public static normalizeLine(line: string): string {
+   
+  static normalizeLine(line: string): string {
     return line.trim().replace(/\s+/g, ' ');
   }
 
@@ -23,7 +24,8 @@ export class ResilientBlockMatcher {
    * Performs formatting-insensitive, non-overlapping block matching.
    * Both line endings and whitespaces are normalized.
    */
-  public static findMatches(
+   
+  static findMatches(
     sourceText: string,
     targetBlock: string
   ): MatchIndex[] {

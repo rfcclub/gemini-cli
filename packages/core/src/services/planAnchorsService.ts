@@ -53,8 +53,8 @@ export class PlanAnchorsService {
     for (const line of lines) {
       const match = line.match(CHECKBOX_RE);
       if (match) {
-        const completed = match[1]!.toLowerCase() === 'x';
-        const description = match[2]!.trim();
+        const completed = match[1].toLowerCase() === 'x';
+        const description = match[2].trim();
         if (description) tasks.push({ description, completed });
       }
     }
@@ -69,12 +69,12 @@ export class PlanAnchorsService {
     for (const line of lines) {
       const match = line.match(NUMBERED_RE);
       if (match) {
-        let description = match[2]!.trim();
+        let description = match[2].trim();
         let completed = false;
         const strikeMatch = description.match(STRIKE_RE);
         if (strikeMatch) {
           completed = true;
-          description = description.replace(STRIKE_RE, strikeMatch[1]!).trim();
+          description = description.replace(STRIKE_RE, strikeMatch[1]).trim();
         }
         if (CHECKMARK_RE.test(description)) {
           completed = true;
@@ -96,7 +96,7 @@ export class PlanAnchorsService {
       return "  \u22ef " + task.description;
     });
     const status = state.currentStepIndex < state.tasks.length
-      ? "Next Task: " + state.tasks[state.currentStepIndex]!.description
+      ? "Next Task: " + state.tasks[state.currentStepIndex].description
       : "All tasks completed.";
     return [
       "", "---", "[ACTIVE PLAN ANCHOR]", progress, status, "",

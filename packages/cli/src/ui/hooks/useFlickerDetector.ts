@@ -25,20 +25,26 @@ export function useFlickerDetector(
   const config = useConfig();
   const { constrainHeight } = useUIState();
 
+  // eslint-disable-next-line no-console
   console.log('Hook executed. ref:', !!rootUiRef.current);
   useEffect(() => {
+    // eslint-disable-next-line no-console
     console.log('Effect executed.');
     const runMeasurement = () => {
+      // eslint-disable-next-line no-console
       console.log('runMeasurement called. current:', !!rootUiRef.current);
       if (!rootUiRef.current) return;
       const measurement = measureElement(rootUiRef.current);
+      // eslint-disable-next-line no-console
       console.log('measurement:', measurement, 'terminalHeight:', terminalHeight);
       if (measurement.height > terminalHeight) {
         if (!constrainHeight) {
+          // eslint-disable-next-line no-console
           console.log('not constrainHeight');
           return;
         }
 
+        // eslint-disable-next-line no-console
         console.log('Recording flicker frame!');
         recordFlickerFrame(config);
         appEvents.emit(AppEvent.Flicker);

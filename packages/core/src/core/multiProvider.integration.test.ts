@@ -17,7 +17,9 @@ describe('Multi-provider Integration', () => {
     vi.mock('../availability/policyHelpers.js', async () => {
         const actual = await vi.importActual('../availability/policyHelpers.js');
         return {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ...actual as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             applyModelSelection: (_config: any, key: any) => ({
                 model: key.model,
                 config: {},
@@ -46,19 +48,23 @@ describe('Multi-provider Integration', () => {
         return {
           ok: true,
           json: () => Promise.resolve({ choices: [{ message: { content: 'from deepseek' } }] }),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
       }
       if (url.toString().includes('anthropic')) {
         return {
           ok: true,
           json: () => Promise.resolve({ content: [{ type: 'text', text: 'from claude' }] }),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return { ok: false, text: () => Promise.resolve('error') } as any;
     });
 
     const mockConfig = {
       modelConfigService: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         getResolvedConfig: (key: any) => ({ 
             model: key.model, 
             generateContentConfig: {} 
@@ -70,12 +76,15 @@ describe('Multi-provider Integration', () => {
       isInteractive: () => false,
       getRetryFetchErrors: () => true,
       getContentGeneratorConfig: () => ({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockContentGenerator = {} as any;
     const client = new BaseLlmClient(mockContentGenerator, mockConfig);
 
     const dsResponse = await client.generateContent({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       modelConfigKey: { model: 'deepseek:coder' } as any,
       contents: [],
       promptId: '1',
@@ -85,6 +94,7 @@ describe('Multi-provider Integration', () => {
     expect(dsResponse.candidates?.[0]?.content?.parts?.[0]?.text).toBe('from deepseek');
 
     const antResponse = await client.generateContent({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       modelConfigKey: { model: 'anthropic:claude' } as any,
       contents: [],
       promptId: '2',
@@ -103,8 +113,8 @@ describe('Multi-provider Integration', () => {
     });
 
     const mockFetch = vi.mocked(fetch);
-    mockFetch.mockImplementation(async (url, options: any) => {
-      const body = JSON.parse(options.body);
+    mockFetch.mockImplementation(async (url, options?: RequestInit) => {
+      const body = JSON.parse(options?.body as string);
       if (url.toString().includes('minimax') && body.model === 'MiniMax-M3') {
         return {
           ok: true,
@@ -112,13 +122,16 @@ describe('Multi-provider Integration', () => {
             Promise.resolve({
               choices: [{ message: { content: 'from minimax m3' } }],
             }),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return { ok: false, text: () => Promise.resolve('error') } as any;
     });
 
     const mockConfig = {
       modelConfigService: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         getResolvedConfig: (key: any) => ({
           model: key.model,
           generateContentConfig: {},
@@ -128,12 +141,15 @@ describe('Multi-provider Integration', () => {
       isInteractive: () => false,
       getRetryFetchErrors: () => true,
       getContentGeneratorConfig: () => ({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockContentGenerator = {} as any;
     const client = new BaseLlmClient(mockContentGenerator, mockConfig);
 
     const mmResponse = await client.generateContent({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       modelConfigKey: { model: 'minimax/MiniMax-M3' } as any,
       contents: [],
       promptId: '3',

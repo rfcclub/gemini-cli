@@ -57,6 +57,7 @@ export interface ContentGenerator {
 
   paidTier?: GeminiUserTier;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   googleGenAI?: any;
 }
 

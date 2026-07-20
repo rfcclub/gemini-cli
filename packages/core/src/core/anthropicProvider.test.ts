@@ -30,6 +30,7 @@ describe('AnthropicProvider', () => {
         content: [{ type: 'text', text: 'Hello from Claude' }],
         usage: { input_tokens: 5, output_tokens: 5 }
       }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
     const request: GenerateContentParameters = {

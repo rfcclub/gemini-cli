@@ -47,7 +47,7 @@ export const statsCommand: CommandModule = {
             clearedCount++;
           }
         }
-      } catch (e) {
+      } catch {
         // Ignore errors
       }
       process.stdout.write(chalk.green(`Successfully cleared ${clearedCount} telemetry session files.\n`));

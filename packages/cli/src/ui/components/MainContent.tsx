@@ -30,6 +30,7 @@ const MemoizedAppHeader = memo(AppHeader);
 // issues in the worst case if we somehow get an enormous response from Gemini.
 // This threshold is arbitrary but should be high enough to never impact normal
 // usage.
+// eslint-disable-next-line react/display-name
 export const MainContent = memo(() => {
   const { version } = useAppContext();
   const uiState = useUIState();
