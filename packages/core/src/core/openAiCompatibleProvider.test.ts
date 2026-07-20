@@ -31,19 +31,24 @@ describe('OpenAiCompatibleProvider', () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        choices: [{ message: { content: 'DeepSeek response' } }],
-        usage: { total_tokens: 5 },
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: 'DeepSeek response' } }],
+          usage: { total_tokens: 5 },
+        }),
+       
+    } as unknown as Response);
 
     const request: GenerateContentParameters = {
       model: 'deepseek-coder',
       contents: [{ role: 'user', parts: [{ text: 'DeepSeek?' }] }],
     };
 
-    const response = await provider.generateContent(request, 'id', LlmRole.UTILITY_TOOL);
+    const response = await provider.generateContent(
+      request,
+      'id',
+      LlmRole.UTILITY_TOOL,
+    );
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.deepseek.com/chat/completions',
@@ -53,7 +58,9 @@ describe('OpenAiCompatibleProvider', () => {
         }),
       }),
     );
-    expect(response.candidates?.[0]?.content?.parts?.[0]?.text).toBe('DeepSeek response');
+    expect(response.candidates?.[0]?.content?.parts?.[0]?.text).toBe(
+      'DeepSeek response',
+    );
   });
 
   it('should support Ollama style configuration (no auth)', async () => {
@@ -61,18 +68,23 @@ describe('OpenAiCompatibleProvider', () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        choices: [{ message: { content: 'Ollama response' } }],
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: 'Ollama response' } }],
+        }),
+       
+    } as unknown as Response);
 
     const request: GenerateContentParameters = {
       model: 'qwen2.5-coder',
       contents: [{ role: 'user', parts: [{ text: 'Ollama?' }] }],
     };
 
-    const response = await provider.generateContent(request, 'id', LlmRole.UTILITY_TOOL);
+    const response = await provider.generateContent(
+      request,
+      'id',
+      LlmRole.UTILITY_TOOL,
+    );
 
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:11434/v1/chat/completions',
@@ -82,7 +94,9 @@ describe('OpenAiCompatibleProvider', () => {
         }),
       }),
     );
-    expect(response.candidates?.[0]?.content?.parts?.[0]?.text).toBe('Ollama response');
+    expect(response.candidates?.[0]?.content?.parts?.[0]?.text).toBe(
+      'Ollama response',
+    );
   });
 
   it('should estimate token count when OpenAI-compat response has no usage data', async () => {
@@ -91,18 +105,25 @@ describe('OpenAiCompatibleProvider', () => {
     // DeepSeek/Ollama sometimes omit usage field
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        choices: [{ message: { content: 'Response without usage metadata.' } }],
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      json: () =>
+        Promise.resolve({
+          choices: [
+            { message: { content: 'Response without usage metadata.' } },
+          ],
+        }),
+       
+    } as unknown as Response);
 
     const request: GenerateContentParameters = {
       model: 'deepseek-coder',
       contents: [{ role: 'user', parts: [{ text: 'Help me with code' }] }],
     };
 
-    const response = await provider.generateContent(request, 'id', LlmRole.UTILITY_TOOL);
+    const response = await provider.generateContent(
+      request,
+      'id',
+      LlmRole.UTILITY_TOOL,
+    );
 
     expect(response.usageMetadata).toBeDefined();
     expect(response.usageMetadata?.totalTokenCount).toBeGreaterThan(0);
@@ -118,11 +139,12 @@ describe('OpenAiCompatibleProvider', () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        choices: [{ message: { content: 'Done' } }],
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: 'Done' } }],
+        }),
+       
+    } as unknown as Response);
 
     const request: GenerateContentParameters = {
       model: 'deepseek-coder',
@@ -135,22 +157,37 @@ describe('OpenAiCompatibleProvider', () => {
         },
         {
           role: 'user',
-          parts: [{ functionResponse: { name: 'get_time', response: { time: '12:00' } } }],
+          parts: [
+            {
+              functionResponse: {
+                name: 'get_time',
+                response: { time: '12:00' },
+              },
+            },
+          ],
         },
       ],
     };
 
     await provider.generateContent(request, 'id', LlmRole.UTILITY_TOOL);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body = JSON.parse((mockFetch.mock.calls[0][1] as any).body as string);
+    const callBody = (vi.mocked(fetch).mock.calls[0][1]?.body ?? '') as string;
+    const body = JSON.parse(callBody);
     const assistantMsg = body.messages.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (m: any) => m.role === 'assistant' && m.tool_calls?.length > 0,
+      (m: Record<string, unknown>) =>
+        m['role'] === 'assistant' &&
+        Array.isArray(m['tool_calls']) &&
+        (m['tool_calls'] as unknown[]).length > 0,
     );
     expect(assistantMsg).toBeDefined();
     // Must be a valid JSON string, not undefined or missing
-    expect(assistantMsg.tool_calls[0].function.arguments).toBe('{}');
+    const toolCalls = (
+      assistantMsg as Record<string, unknown> | undefined
+    )?.['tool_calls'] as Array<Record<string, unknown>> | undefined;
+    const firstCallFn = toolCalls?.[0]?.['function'] as
+      | Record<string, unknown>
+      | undefined;
+    expect(firstCallFn?.['arguments']).toBe('{}');
   });
 
   it('should correctly correlate tool_call_ids in multi-turn history', async () => {
@@ -160,11 +197,12 @@ describe('OpenAiCompatibleProvider', () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        choices: [{ message: { content: 'Turn 2 answer' } }],
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: 'Turn 2 answer' } }],
+        }),
+       
+    } as unknown as Response);
 
     // Turn 2 request — full history including turn 1 tool call roundtrip
     const request: GenerateContentParameters = {
@@ -173,35 +211,62 @@ describe('OpenAiCompatibleProvider', () => {
         { role: 'user', parts: [{ text: 'turn 1 prompt' }] },
         {
           role: 'model',
-          parts: [{ functionCall: { name: 'read_file', args: { path: '/tmp/f' } } }],
+          parts: [
+            { functionCall: { name: 'read_file', args: { path: '/tmp/f' } } },
+          ],
         },
         {
           role: 'user',
-          parts: [{ functionResponse: { name: 'read_file', response: { content: 'hello' } } }],
+          parts: [
+            {
+              functionResponse: {
+                name: 'read_file',
+                response: { content: 'hello' },
+              },
+            },
+          ],
         },
         { role: 'model', parts: [{ text: 'turn 1 answer' }] },
         { role: 'user', parts: [{ text: 'turn 2 prompt' }] },
       ],
     };
 
-    const response = await provider.generateContent(request, 'id', LlmRole.UTILITY_TOOL);
-    expect(response.candidates?.[0]?.content?.parts?.[0]?.text).toBe('Turn 2 answer');
+    const response = await provider.generateContent(
+      request,
+      'id',
+      LlmRole.UTILITY_TOOL,
+    );
+    expect(response.candidates?.[0]?.content?.parts?.[0]?.text).toBe(
+      'Turn 2 answer',
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body = JSON.parse((mockFetch.mock.calls[0][1] as any).body as string);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toolMsg = body.messages.find((m: any) => m.role === 'tool');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assistantMsg = body.messages.find((m: any) => m.tool_calls?.length > 0);
+    const callBody = (vi.mocked(fetch).mock.calls[0][1]?.body ?? '') as string;
+    const body = JSON.parse(callBody);
+    const toolMsg = body.messages.find(
+      (m: Record<string, unknown>) => m['role'] === 'tool',
+    );
+    const assistantMsg = body.messages.find(
+      (m: Record<string, unknown>) =>
+        Array.isArray(m['tool_calls']) &&
+        (m['tool_calls'] as unknown[]).length > 0,
+    );
     expect(toolMsg).toBeDefined();
     expect(assistantMsg).toBeDefined();
     // tool_call_id in tool message must match the id in assistant's tool_calls
-    expect(toolMsg.tool_call_id).toBe(assistantMsg.tool_calls[0].id);
+    const toolMsgId = (toolMsg as Record<string, unknown>)['tool_call_id'];
+    const assistantToolCalls = (
+      assistantMsg as Record<string, unknown>
+    )['tool_calls'] as Array<Record<string, unknown>> | undefined;
+    expect(toolMsgId).toBe(assistantToolCalls?.[0]?.['id']);
   });
 
   describe('generateContentStream', () => {
-    type SseStream = ReadableStream<Uint8Array> & { cancel: () => Promise<void> };
-    type SseStreamWithMock = SseStream & { __cancelMock: ReturnType<typeof vi.fn> };
+    type SseStream = ReadableStream<Uint8Array> & {
+      cancel: () => Promise<void>;
+    };
+    type SseStreamWithMock = SseStream & {
+      __cancelMock: ReturnType<typeof vi.fn>;
+    };
 
     function makeSseStream(chunks: string[]): SseStreamWithMock {
       const encoder = new TextEncoder();
@@ -231,21 +296,25 @@ describe('OpenAiCompatibleProvider', () => {
         'data: {"choices":[{"delta":{},"finish_reason":"eos"}]}\n\n',
         'data: [DONE]\n\n',
       ]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockFetch.mockResolvedValue({ ok: true, body: stream } as any);
+       
+      mockFetch.mockResolvedValue({ ok: true, body: stream } as unknown as Response);
 
       const request: GenerateContentParameters = {
         model: 'qwen2.5-coder',
         contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
       };
 
-      const gen = await provider.generateContentStream(request, 'id', LlmRole.UTILITY_TOOL);
+      const gen = await provider.generateContentStream(
+        request,
+        'id',
+        LlmRole.UTILITY_TOOL,
+      );
       const chunks = [];
       for await (const chunk of gen) {
         chunks.push(chunk);
       }
 
-      const finishChunk = chunks.find(c => c.candidates?.[0]?.finishReason);
+      const finishChunk = chunks.find((c) => c.candidates?.[0]?.finishReason);
       expect(finishChunk?.candidates?.[0]?.finishReason).toBe('STOP');
     });
 
@@ -258,21 +327,25 @@ describe('OpenAiCompatibleProvider', () => {
         'data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n',
         // No [DONE] — TCP closes here
       ]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockFetch.mockResolvedValue({ ok: true, body: stream } as any);
+       
+      mockFetch.mockResolvedValue({ ok: true, body: stream } as unknown as Response);
 
       const request: GenerateContentParameters = {
         model: 'qwen2.5-coder',
         contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
       };
 
-      const gen = await provider.generateContentStream(request, 'id', LlmRole.UTILITY_TOOL);
+      const gen = await provider.generateContentStream(
+        request,
+        'id',
+        LlmRole.UTILITY_TOOL,
+      );
       const chunks = [];
       for await (const chunk of gen) {
         chunks.push(chunk);
       }
 
-      const finishChunk = chunks.find(c => c.candidates?.[0]?.finishReason);
+      const finishChunk = chunks.find((c) => c.candidates?.[0]?.finishReason);
       expect(finishChunk?.candidates?.[0]?.finishReason).toBe('STOP');
     });
 
@@ -288,17 +361,23 @@ describe('OpenAiCompatibleProvider', () => {
       // Spy directly on the instance's cancel method (JSDOM ReadableStream
       // does not call the constructor cancel option; spy on the method instead).
       const cancelSpy = vi.spyOn(stream, 'cancel').mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockFetch.mockResolvedValue({ ok: true, body: stream } as any);
+       
+      mockFetch.mockResolvedValue({ ok: true, body: stream } as unknown as Response);
 
       const request: GenerateContentParameters = {
         model: 'qwen2.5-coder',
         contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
       };
 
-      const gen = await provider.generateContentStream(request, 'id', LlmRole.UTILITY_TOOL);
+      const gen = await provider.generateContentStream(
+        request,
+        'id',
+        LlmRole.UTILITY_TOOL,
+      );
       // Consume all chunks
-      for await (const _ of gen) { /* noop */ }
+      for await (const _ of gen) {
+        /* noop */
+      }
 
       // responseBody.cancel() must have been called to release the HTTP connection
       expect(cancelSpy).toHaveBeenCalled();

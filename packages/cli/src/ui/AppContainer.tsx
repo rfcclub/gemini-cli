@@ -234,7 +234,8 @@ export const AppContainer = (props: AppContainerProps) => {
     useContext(InkAppContext);
   const recordingFilenameRef = useRef<string | null>(null);
   const historyManager = useHistory({
-    chatRecordingService: config.getGeminiClient()?.getChatRecordingService(),
+    chatRecordingService:
+      config.getGeminiClient()?.getChatRecordingService() ?? null,
   });
 
   useMemoryMonitor(historyManager);
