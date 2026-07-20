@@ -408,18 +408,24 @@ function* emitKeys(
       }
     }
 
-    if (escaped && (ch === 'O' || ch === '[' || ch === ']')) {
+    if (
+      escaped &&
+      (ch === 'O' ||
+        ch === '[' ||
+        ch === ']' ||
+        ch === 'P' ||
+        ch === '_' ||
+        ch === '^')
+    ) {
       // ANSI escape sequence
       code = ch;
       let modifier = 0;
 
-      if (ch === ']') {
-        // OSC sequence
-        // ESC ] <params> ; <data> BEL
-        // ESC ] <params> ; <data> ESC \
+      if (ch === ']' || ch === 'P' || ch === '_' || ch === '^') {
+        // OSC, DCS, APC, or PM sequence
+        // Read until BEL, `ESC \`, or timeout (empty string)
         let buffer = '';
 
-        // Read until BEL, `ESC \`, or timeout (empty string)
         while (true) {
           const next = yield;
           if (next === '' || next === '\u0007') {
@@ -435,24 +441,28 @@ function* emitKeys(
           buffer += next;
         }
 
-        // Check for OSC 52 (Clipboard) response
-        // Format: 52;c;<base64> or 52;p;<base64>
-        const match = /^52;[cp];(.*)$/.exec(buffer);
-        if (match) {
-          try {
-            const base64Data = match[1];
-            const decoded = Buffer.from(base64Data, 'base64').toString('utf-8');
-            keypressHandler({
-              name: 'paste',
-              shift: false,
-              alt: false,
-              ctrl: false,
-              cmd: false,
-              insertable: true,
-              sequence: decoded,
-            });
-          } catch {
-            debugLogger.log('Failed to decode OSC 52 clipboard data');
+        if (ch === ']') {
+          // Check for OSC 52 (Clipboard) response
+          // Format: 52;c;<base64> or 52;p;<base64>
+          const match = /^52;[cp];(.*)$/.exec(buffer);
+          if (match) {
+            try {
+              const base64Data = match[1];
+              const decoded = Buffer.from(base64Data, 'base64').toString(
+                'utf-8',
+              );
+              keypressHandler({
+                name: 'paste',
+                shift: false,
+                alt: false,
+                ctrl: false,
+                cmd: false,
+                insertable: true,
+                sequence: decoded,
+              });
+            } catch {
+              debugLogger.log('Failed to decode OSC 52 clipboard data');
+            }
           }
         }
 

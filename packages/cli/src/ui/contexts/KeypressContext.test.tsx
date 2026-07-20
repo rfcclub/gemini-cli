@@ -1417,6 +1417,12 @@ describe('KeypressContext', () => {
       { name: 'SGR Mouse Release', sequence: '\u001b[<0;44;18m' },
       { name: 'something mouse', sequence: '\u001b[<0;53;19M' },
       { name: 'another mouse', sequence: '\u001b[<0;29;19m' },
+      {
+        name: 'DCS (terminal name query response)',
+        sequence: '\x1bP>|tmux 3.5\x1b\\',
+      },
+      { name: 'APC', sequence: '\x1b_something\x1b\\' },
+      { name: 'PM', sequence: '\x1b^privacy\x07' },
     ])('should ignore $name sequence', async ({ sequence }) => {
       const keyHandler = vi.fn();
       const { result } = await renderHookWithProviders(() =>
