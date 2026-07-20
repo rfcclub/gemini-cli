@@ -68,3 +68,14 @@ temp_agents/
 
 # conductor extension and planning directories
 conductor/
+
+# Local-only artifacts
+coverage/
+debug.log
+graphify-out/
+.audit-scratch/
+.18bbe59ff7a7ddf7-00000000.bun-build
+# Ignore archived handoff files dropped at root by mistake (active handoff is
+# tracked explicitly; archived copies live in docs/handoffs/).
+/HANDOFF_2026-06-*.md
+/HANDOFF_2026-07-01.md
