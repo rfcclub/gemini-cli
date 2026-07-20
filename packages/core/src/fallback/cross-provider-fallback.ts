@@ -82,7 +82,10 @@ export class CrossProviderFallbackChain {
     // Priority 1: Environment variable (explicit override)
     const envFallback = process.env['VESTA_FALLBACK_MODELS'];
     if (envFallback) {
-      return envFallback.split(',').map((m) => m.trim()).filter(Boolean);
+      return envFallback
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean);
     }
 
     // Priority 2: Read all models from providers.yaml via ProviderRegistry
@@ -129,7 +132,7 @@ export class CrossProviderFallbackChain {
 
   private extractProvider(model: string): string {
     if (model.includes(':')) return model.split(':')[0];
-    if (model.includes('/')) model.split('/')[0];
+    if (model.includes('/')) return model.split('/')[0];
     return 'google';
   }
 
@@ -139,7 +142,7 @@ export class CrossProviderFallbackChain {
   handleFailure(
     failedModel: string,
     failureKind: FailureKind,
-    error?: unknown,
+    _error?: unknown,
   ): FallbackResult {
     // Mark the failed model
     for (const candidate of this.candidates) {
@@ -185,7 +188,9 @@ export class CrossProviderFallbackChain {
    * Gets the current active model in the chain.
    */
   getCurrentModel(): string {
-    return this.candidates[this.currentIndex]?.model ?? this.candidates[0].model;
+    return (
+      this.candidates[this.currentIndex]?.model ?? this.candidates[0].model
+    );
   }
 
   /**
